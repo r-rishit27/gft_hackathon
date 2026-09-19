@@ -303,7 +303,45 @@ def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
         for (neighbor,) in neighbor_rows:
             selected.add(neighbor)
 
-    return {name: t for name, t in tables.items() if name in selected}
+    result = {name: t for name, t in tables.items() if name in selected}
+    for t in result.values():
+        t["fields"] = _prune_fields(t, q_tokens)
+    return result
+
+
+MAX_FIELDS_PER_TABLE = 10  # keeps the schema string focused on fields a real
+                            # KPI query would use; Party alone carries 19
+                            # fields (most of them rarely-queried contact-
+                            # detail structs), which both bloats the input
+                            # past what the model was trained on and gives it
+                            # more surface area to hallucinate a plausible-
+                            # looking but wrong column from.
+
+
+def _prune_fields(t, q_tokens):
+    """When a table has more than MAX_FIELDS_PER_TABLE fields, keep only the
+    ones most relevant to the question (lexical overlap against the field's
+    name, enum values, and cleaned description), plus anything structurally
+    load-bearing regardless of relevance: primary-key columns and any column
+    that's the source of a foreign key -- dropping those would break join
+    generation even though they rarely share vocabulary with the question."""
+    fields = t["fields"]
+    if len(fields) <= MAX_FIELDS_PER_TABLE:
+        return fields
+
+    must_keep = set(t["primary_key"]) | {fk["column"] for fk in t["foreign_keys"]}
+
+    def relevance(f):
+        if f["name"] in must_keep:
+            return float("inf")
+        tokens = _tokenize(f["name"])
+        for v in _field_enum_values(f):
+            tokens |= _tokenize(v)
+        tokens |= _tokenize(_clean_description_for_retrieval(f["description"]))
+        return len(q_tokens & tokens)
+
+    ranked = sorted(fields, key=relevance, reverse=True)
+    return ranked[:MAX_FIELDS_PER_TABLE]
 
 
 # ---------------------------------------------------------------------------

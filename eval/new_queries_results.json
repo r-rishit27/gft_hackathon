@@ -71,21 +71,36 @@
   {
     "question": "What is the minimum and maximum risk score for each risk period?",
     "gold_sql": "SELECT risk_period_end_time, MIN(risk_score) AS min_score, MAX(risk_score) AS max_score FROM RiskScores GROUP BY risk_period_end_time",
-    "pred_sql": "SELECT min(risk_case_id), max(risk-score), risk_period_time FROM RiskCaseEvent GROUP BY risk_previous_perior_time",
+    "pred_sql": "SELECT min(risk_case_id), max(type-score), type FROM RiskCaseEvent GROUP BY risk_typology_measurements",
     "source": "model_generation",
     "corrections": [
       {
         "kind": "column",
         "from": "risk_score",
         "to": "risk_case_id"
+      },
+      {
+        "kind": "column",
+        "stage": "semantic",
+        "from": "risk",
+        "to": "type"
+      },
+      {
+        "kind": "column",
+        "stage": "semantic",
+        "from": "risk_period_time",
+        "to": "type"
+      },
+      {
+        "kind": "column",
+        "stage": "semantic",
+        "from": "risk_previous_month_end",
+        "to": "risk_typology_measurements"
       }
     ],
     "schema_valid": false,
     "schema_violations": [
-      "identifier 'risk' does not match any table, alias, or column in scope",
-      "identifier 'score' does not match any table, alias, or column in scope",
-      "identifier 'risk_period_time' does not match any table, alias, or column in scope",
-      "identifier 'risk_previous_perior_time' does not match any table, alias, or column in scope"
+      "identifier 'score' does not match any table, alias, or column in scope"
     ],
     "gold_tables": [
       "RiskScores"
@@ -100,26 +115,19 @@
   {
     "question": "List the feature name and attribution value for each explainability record",
     "gold_sql": "SELECT party_id, attr.feature, attr.attribution FROM Explainability, UNNEST(attributions) AS attr",
-    "pred_sql": "SELECT T1.attributions, T1.attributions FROM Explainability AS T1 JOIN RiskCaseEvent AS T2 ON T1.party_id = T2.party_id GROUP BY T1.attributions",
+    "pred_sql": "SELECT feature, explainability-attribution FROM Explainability",
     "source": "model_generation",
     "corrections": [
       {
         "kind": "column",
-        "stage": "kg_repair_semantic",
-        "from": "feature_name",
-        "to": "attributions"
+        "stage": "semantic",
+        "from": "explainability_feature_name",
+        "to": "feature"
       },
       {
         "kind": "column",
-        "stage": "kg_repair",
         "from": "attribution_value",
-        "to": "attributions"
-      },
-      {
-        "kind": "column",
-        "stage": "kg_repair_semantic",
-        "from": "Feature_Name",
-        "to": "attributions"
+        "to": "attribution"
       }
     ],
     "schema_valid": true,
@@ -128,28 +136,34 @@
       "Explainability"
     ],
     "pred_tables": [
-      "Explainability",
-      "RiskCaseEvent"
+      "Explainability"
     ],
     "table_recall": 1.0,
-    "table_precision": 0.5,
+    "table_precision": 1.0,
     "exact_match": false
   },
   {
     "question": "How many commercial parties are registered as large?",
     "gold_sql": "SELECT COUNT(*) FROM CommercialPartiesRegistration WHERE party_size = 'LARGE'",
-    "pred_sql": "SELECT count(*) FROM Party WHERE company = \"COMPANY\" AND registration_status = \"Large\";",
+    "pred_sql": "SELECT count(*) FROM Party WHERE party_id IN ( SELECTION party_ID FROM Party JOIN AccountPartyLink ON Party_iD = party_Id WHERES assets_value_range = \"commercial\") AND is_entity_deleted = 'yes';",
     "source": "model_generation",
-    "corrections": [],
+    "corrections": [
+      {
+        "kind": "column",
+        "from": "party_value_range",
+        "to": "assets_value_range"
+      }
+    ],
     "schema_valid": false,
     "schema_violations": [
-      "identifier 'company' does not match any table, alias, or column in scope",
-      "identifier 'registration_status' does not match any table, alias, or column in scope"
+      "identifier 'SELECTION' does not match any table, alias, or column in scope",
+      "identifier 'WHERES' does not match any table, alias, or column in scope"
     ],
     "gold_tables": [
       "CommercialPartiesRegistration"
     ],
     "pred_tables": [
+      "AccountPartyLink",
       "Party"
     ],
     "table_recall": 0.0,
@@ -177,18 +191,23 @@
   {
     "question": "Show the resource id and value of the importance metric for each model",
     "gold_sql": "SELECT resource_id, value FROM ExportedMetadata WHERE resource_type = 'Model' AND name = 'Importance'",
-    "pred_sql": "SELECT T1.source_system, T1.importance_metric FROM Party AS T1 JOIN RiskCaseEvent AS T2 ON T1.party_id = T2.party_id GROUP BY T1.source_system",
+    "pred_sql": "SELECT T1.source_system, T1.value FROM PartySupplementaryData AS T1 JOIN RiskCaseEvent AS T2 ON T1.party_id = T2.party_id GROUP BY T1.source_system",
     "source": "model_generation",
-    "corrections": [],
-    "schema_valid": false,
-    "schema_violations": [
-      "column 'T1.importance_metric' not found in schema"
+    "corrections": [
+      {
+        "kind": "column",
+        "stage": "kg_repair_semantic",
+        "from": "values_importance_metric",
+        "to": "value"
+      }
     ],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "ExportedMetadata"
     ],
     "pred_tables": [
-      "Party",
+      "PartySupplementaryData",
       "RiskCaseEvent"
     ],
     "table_recall": 0.0,
@@ -198,35 +217,21 @@
   {
     "question": "How many parties are companies?",
     "gold_sql": "SELECT COUNT(*) FROM Party WHERE type = 'COMPANY'",
-    "pred_sql": "SELECT count(*) FROM Party AS T1 JOIN PartySupplementaryData AS T2 ON T1.party_id = T2.party_id WHERE T1.company = \"Company\"",
+    "pred_sql": "SELECT count(*) FROM Party WHERE company = 'Company'",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "table",
-        "stage": "kg_repair",
-        "from": "party_supplementary_data",
-        "to": "PartySupplementaryData"
-      },
-      {
-        "kind": "column",
-        "stage": "kg_repair",
-        "from": "party_IID",
-        "to": "party_id"
-      }
-    ],
+    "corrections": [],
     "schema_valid": false,
     "schema_violations": [
-      "column 'T1.company' not found in schema"
+      "identifier 'company' does not match any table, alias, or column in scope"
     ],
     "gold_tables": [
       "Party"
     ],
     "pred_tables": [
-      "Party",
-      "PartySupplementaryData"
+      "Party"
     ],
     "table_recall": 1.0,
-    "table_precision": 0.5,
+    "table_precision": 1.0,
     "exact_match": false
   },
   {
@@ -256,54 +261,19 @@
   {
     "question": "How many risk case events are an AML exit?",
     "gold_sql": "SELECT COUNT(*) FROM RiskCaseEvent WHERE type = 'AML_EXIT'",
-    "pred_sql": "SELECT count(*) FROM Party AS T1 JOIN RiskCaseEvent AS T2 ON T1.risk_case_id = T2.risk_case_id risk_case_id WHERE T1.type = \"AML\" AND T2.risk_typology_measurements = \"EXIT\"",
+    "pred_sql": "SELECT count(*) FROM Party AS party_id WHERE exit_date = \"AML\"",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "table",
-        "stage": "kg_repair_semantic",
-        "from": "AML_exit",
-        "to": "Party"
-      },
-      {
-        "kind": "column",
-        "stage": "kg_repair",
-        "from": "risk_",
-        "to": "risk_score"
-      },
-      {
-        "kind": "column",
-        "stage": "kg_repair",
-        "from": "type_measurements",
-        "to": "risk_typology_measurements"
-      },
-      {
-        "kind": "column",
-        "from": "risk_case_id",
-        "to": "risk_case_id"
-      },
-      {
-        "kind": "column",
-        "from": "risk_score",
-        "to": "risk_case_id"
-      },
-      {
-        "kind": "column",
-        "from": "case_iD",
-        "to": "risk_case_id"
-      }
-    ],
+    "corrections": [],
     "schema_valid": true,
     "schema_violations": [],
     "gold_tables": [
       "RiskCaseEvent"
     ],
     "pred_tables": [
-      "Party",
-      "RiskCaseEvent"
+      "Party"
     ],
-    "table_recall": 1.0,
-    "table_precision": 0.5,
+    "table_recall": 0.0,
+    "table_precision": 0.0,
     "exact_match": false
   },
   {
@@ -313,9 +283,10 @@
     "source": "model_generation",
     "corrections": [
       {
-        "kind": "column",
-        "from": "party_supplementary_data_payload",
-        "to": "supplementary_data_payload"
+        "kind": "table",
+        "stage": "kg_repair",
+        "from": "party_supplementary_Data",
+        "to": "PartySupplementaryData"
       }
     ],
     "schema_valid": true,

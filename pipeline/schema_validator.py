@@ -118,6 +118,130 @@ def get_enum_registry():
     return _ENUM_REGISTRY
 
 
+def build_field_descriptions(schema=None):
+    """Returns {(table_name, field_name): description} across all nesting
+    depths -- the gist text source for the semantic-repair fallback below.
+    First occurrence per (table, field_name) wins; a RECORD field's own
+    subfields never reuse its name within the same table's tree, so this
+    can't silently overwrite a real value."""
+    schema = schema or load_schema()
+    desc = {}
+
+    def walk(table_name, fields):
+        for f in fields:
+            key = (table_name, f["name"])
+            if key not in desc:
+                desc[key] = f.get("description", "") or ""
+            nested = f.get("fields")
+            if nested:
+                walk(table_name, nested)
+
+    for section in ("input_data_model", "output_data_model"):
+        for table in schema[section]["tables"]:
+            walk(table["name"], table["fields"])
+    return desc
+
+
+_FIELD_DESCRIPTIONS = None
+
+
+def get_field_descriptions():
+    global _FIELD_DESCRIPTIONS
+    if _FIELD_DESCRIPTIONS is None:
+        _FIELD_DESCRIPTIONS = build_field_descriptions()
+    return _FIELD_DESCRIPTIONS
+
+
+def build_table_descriptions(schema=None):
+    """Returns {table_name: description}, the gist source for table-level
+    semantic repair."""
+    schema = schema or load_schema()
+    return {
+        table["name"]: table.get("description", "") or ""
+        for section in ("input_data_model", "output_data_model")
+        for table in schema[section]["tables"]
+    }
+
+
+_TABLE_DESCRIPTIONS = None
+
+
+def get_table_descriptions():
+    global _TABLE_DESCRIPTIONS
+    if _TABLE_DESCRIPTIONS is None:
+        _TABLE_DESCRIPTIONS = build_table_descriptions()
+    return _TABLE_DESCRIPTIONS
+
+
+_DESC_PREFIX_RE = re.compile(r"^(MANDATORY|RECOMMENDED|EXPERIMENTAL)\s*:\s*", re.IGNORECASE)
+
+
+def _clean_description(description):
+    """Strips the "MANDATORY:"/"RECOMMENDED:"/"EXPERIMENTAL:" classification
+    prefix and keeps only the first sentence -- the same trim
+    text2sql_falkordb.py's _clean_description_for_retrieval applies (kept as
+    a small local duplicate rather than importing that module, to avoid a
+    circular import: text2sql_falkordb imports this module, not the other
+    way around). A full multi-sentence description measurably dilutes the
+    embedding used for semantic repair below: "TYPICAL_TYPE" against
+    RiskCaseEvent.type's full description scores 0.16 (fails any reasonable
+    cutoff), but against just its first sentence scores 0.38."""
+    if not description:
+        return ""
+    description = _DESC_PREFIX_RE.sub("", description)
+    return description.split(". ")[0]
+
+
+def _describe_field(name, preferred_tables, field_descs):
+    """Best-effort description lookup for `name`: prefer a table already in
+    play for this query (more likely to be the intended meaning when the
+    same field name means slightly different things in different tables),
+    falling back to any table that has a field with this name."""
+    for t in preferred_tables:
+        d = field_descs.get((t, name))
+        if d is not None:
+            return _clean_description(d)
+    for (t, n), d in field_descs.items():
+        if n == name:
+            return _clean_description(d)
+    return ""
+
+
+# Calibrated the same way as pipeline/text2sql_falkordb.py's repair
+# functions: a short hallucinated identifier embedded against a longer gist
+# scores much lower in absolute cosine similarity than two comparable-length
+# sentences do, so these sit well below the ~0.7+ range used for exemplar
+# matching. See that module's TABLE_SEMANTIC_REPAIR_CUTOFF /
+# COLUMN_SEMANTIC_REPAIR_CUTOFF docstring for the measured evidence.
+TABLE_SEMANTIC_CUTOFF = 0.20
+COLUMN_SEMANTIC_CUTOFF = 0.35
+
+
+def _semantic_best_match(word, candidates_with_desc, cutoff):
+    """candidates_with_desc: [(name, description), ...]. Returns the best-
+    matching name if its embedding similarity to `word` clears `cutoff`,
+    else None. Lazily imports semantic_search so this module still works
+    standalone (per its own module docstring) if the embeddings dependency
+    isn't installed -- repair just skips this step and falls through to
+    flagging a violation, same as before this fallback existed."""
+    if not candidates_with_desc:
+        return None
+    try:
+        try:
+            from pipeline import semantic_search
+        except ImportError:
+            import semantic_search
+    except ImportError:
+        return None
+
+    word_vec = semantic_search.embed(word.replace("_", " "))
+    gists = [f"{name}: {desc}" for name, desc in candidates_with_desc]
+    gist_vecs = semantic_search.embed(gists)
+    sims = [semantic_search.cosine_sim(word_vec, v) for v in gist_vecs]
+    best_i = max(range(len(sims)), key=lambda i: sims[i])
+    return candidates_with_desc[best_i][0] if sims[best_i] >= cutoff else None
+
+
 def load_schema():
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
@@ -218,6 +342,9 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
     cte_names = {m.group(1).lower() for m in re.finditer(r"\bWITH\s+([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(", masked_sql, re.IGNORECASE)}
     cte_names |= {m.group(1).lower() for m in re.finditer(r"\)\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(", masked_sql, re.IGNORECASE)}
 
+    table_desc = get_table_descriptions()
+    field_descs = get_field_descriptions()
+
     # --- 1. Table names -----------------------------------------------
     def fix_table(match):
         keyword, name = match.group(1), match.group(2)
@@ -230,6 +357,12 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
         if close:
             corrections.append({"kind": "table", "from": name, "to": close})
             return f"{keyword} {close}"
+        sem = _semantic_best_match(
+            name, [(t, _clean_description(table_desc.get(t, ""))) for t in all_tables], TABLE_SEMANTIC_CUTOFF
+        )
+        if sem:
+            corrections.append({"kind": "table", "stage": "semantic", "from": name, "to": sem})
+            return f"{keyword} {sem}"
         violations.append(f"table '{name}' not found in schema")
         return match.group(0)
 
@@ -271,6 +404,14 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
         if close:
             corrections.append({"kind": "column", "from": col, "to": close})
             return f"{prefix}.{close}"
+        pool = candidate_fields or all_fields
+        preferred = [table] if table else list(tables_in_query)
+        sem = _semantic_best_match(
+            col, [(c, _describe_field(c, preferred, field_descs)) for c in pool], COLUMN_SEMANTIC_CUTOFF
+        )
+        if sem:
+            corrections.append({"kind": "column", "stage": "semantic", "from": col, "to": sem})
+            return f"{prefix}.{sem}"
         violations.append(f"column '{prefix}.{col}' not found in schema")
         return match.group(0)
 
@@ -311,6 +452,15 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
         if close and close.lower() != lw:
             corrections.append({"kind": "column", "from": word, "to": close})
             return close
+        if len(word) >= 4 and fields_in_query:
+            sem = _semantic_best_match(
+                word,
+                [(c, _describe_field(c, list(tables_in_query), field_descs)) for c in fields_in_query],
+                COLUMN_SEMANTIC_CUTOFF,
+            )
+            if sem:
+                corrections.append({"kind": "column", "stage": "semantic", "from": word, "to": sem})
+                return sem
         if len(word) >= 4:
             violations.append(f"identifier '{word}' does not match any table, alias, or column in scope")
         return word  # leave ambiguous/unresolvable bare words in place rather than guess

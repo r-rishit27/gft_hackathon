@@ -2,6 +2,8 @@
 
 Design and repository assessment: 2026-09-19. This document proposes the next architecture; it does not deploy services or certify banking compliance.
 
+Implementation update: `analytics_service/` now provides an isolated six-KPI prototype, independent validation, a BigQuery adapter and an offline-tested dashboard. See [the service README](../analytics_service/README.md) and [verification report](../analytics_service/VERIFICATION.md). The inventory below records the original model-service baseline, not the new package. Live integration and cloud IAM/perimeter verification remain pending.
+
 ## Scope and Current Boundary
 
 - Target: `gen-lang-client-0810987953.aml_demo`, documented dataset location `asia-south1`.
@@ -92,7 +94,7 @@ Insight text is calculated from actual result values: totals, changes and ranked
 
 Banking-specific metric definitions must establish Party historical-record joins, latest-versus-as-of risk scores, distinct cases versus case events, alert/SAR denominators and `units + nanos / 1e9` monetary interpretation. Do not mix normalized USD and local-currency companion amounts. "Latest" means latest available dataset period, not necessarily today's live position.
 
-## Repository Implementation Inventory
+## Original Repository Baseline
 
 | Component | Verified code/artifact | Gap to target |
 | --- | --- | --- |

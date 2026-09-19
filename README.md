@@ -56,7 +56,7 @@ See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results
    ```
 2. Install dependencies:
    ```
-   pip install fastapi "uvicorn[standard]" falkordb python-dotenv transformers torch sentencepiece accelerate
+   pip install fastapi "uvicorn[standard]" falkordb python-dotenv transformers torch sentencepiece accelerate sentence-transformers
    ```
 3. Load the schema into FalkorDB (one-time, or whenever `schema/aml_data_model_schema.json` changes):
    ```

@@ -49,12 +49,14 @@ from falkordb import FalkorDB
 
 try:
     from pipeline import schema_validator
+    from pipeline import semantic_search
 except ImportError:
     # Running this file directly (`python pipeline/text2sql_falkordb.py ...`)
     # rather than as part of the `pipeline` package -- the script's own
     # directory is already on sys.path, so the plain import finds the sibling
     # module.
     import schema_validator
+    import semantic_search
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
@@ -204,28 +206,80 @@ _NAME_MATCH_WEIGHT = 2  # a table/field NAME matching the question is a much
                          # stronger intent signal than a description word
                          # incidentally matching, so it counts for more.
 
+# Hybrid table-retrieval blend: lexical score is normalized to [0, 1] (as a
+# fraction of the question's tokens that were matched) and combined with the
+# table's semantic similarity to the question. Semantic carries most of the
+# weight since it captures intent past exact wording (e.g. a question about
+# "customers" should still surface Party even with zero literal word
+# overlap), while lexical still pulls its weight for exact identifier hits
+# ("risk_score", "party_id") that a general-purpose sentence embedding can
+# under-weight.
+TABLE_LEXICAL_WEIGHT = 0.4
+TABLE_SEMANTIC_WEIGHT = 0.6
+
+
+def _field_enum_values(f):
+    """Same enum-value resolution as format_table(): prefer the schema's
+    authoritative allowed_enum_values, fall back to regex-extraction from
+    the description. Used here so identifier-like enum tokens (e.g.
+    AML_SAR, PASSWORD_CHANGE) are searchable -- a question mentioning "SAR"
+    has zero overlap with any table/field *name*, but everything to do with
+    RiskCaseEvent.type's enum values, which the first-sentence-trimmed
+    description no longer carries verbatim."""
+    values = [v for v in f.get("allowed_enum_values") or [] if isinstance(v, str)]
+    if not values:
+        values = extract_enum_hint(f.get("description"))
+    return values
+
+
+def _table_gist(name, t):
+    """A short natural-language summary of a table used as the semantic-
+    search document: its name, first-sentence description, and each field's
+    name plus enum values -- enough for an embedding to capture "what this
+    table is about" (including which literal values live in it) without
+    paying for the full (often much longer) field-by-field description
+    text."""
+    field_parts = []
+    for f in t["fields"]:
+        vals = _field_enum_values(f)
+        field_parts.append(f'{f["name"]} ({" ".join(vals)})' if vals else f["name"])
+    desc = _clean_description_for_retrieval(t["description"])
+    return f"{name}: {desc}. Fields: {' '.join(field_parts)}"
+
 
 def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
-    """Lexical retrieval: score tables by overlap between question tokens and
-    table/field names (weighted higher) + descriptions (cleaned of
-    classification prefixes and trimmed to their first sentence), then
-    expand one hop across REFERENCES/LINKS_TO edges so joinable tables
-    aren't dropped. Falls back to the full schema if nothing scores above
-    zero."""
+    """Hybrid retrieval: scores tables by a blend of (a) lexical overlap
+    between question tokens and table/field names + enum values (weighted
+    higher) + descriptions (cleaned of classification prefixes, first
+    sentence only), and (b) semantic (embedding cosine) similarity between
+    the question and each table's gist -- see _table_gist and
+    semantic_search.py for why lexical alone isn't sufficient. Then expands
+    one hop across REFERENCES/LINKS_TO edges so joinable tables aren't
+    dropped. Falls back to the full schema if nothing scores above zero."""
     tables = fetch_all_tables(graph)
     q_tokens = _tokenize(question)
+    q_vec = semantic_search.embed(question)
+
+    table_names = list(tables.keys())
+    gist_vecs = semantic_search.embed([_table_gist(name, tables[name]) for name in table_names])
 
     scores = {}
-    for name, t in tables.items():
+    for name, gist_vec in zip(table_names, gist_vecs):
+        t = tables[name]
         name_tokens = _tokenize(name)
         desc_tokens = _tokenize(_clean_description_for_retrieval(t["description"]))
         for f in t["fields"]:
             name_tokens |= _tokenize(f["name"])
+            for v in _field_enum_values(f):
+                name_tokens |= _tokenize(v)  # an enum value like AML_SAR is
+                                              # as strong a signal as a field
+                                              # name, not incidental prose
             desc_tokens |= _tokenize(_clean_description_for_retrieval(f["description"]))
         desc_tokens -= name_tokens  # don't double-count a word that's in both
-        scores[name] = (
-            _NAME_MATCH_WEIGHT * len(q_tokens & name_tokens) + len(q_tokens & desc_tokens)
-        )
+        raw_lexical = _NAME_MATCH_WEIGHT * len(q_tokens & name_tokens) + len(q_tokens & desc_tokens)
+        lexical = min(raw_lexical / len(q_tokens), 1.0) if q_tokens else 0.0
+        semantic = semantic_search.cosine_sim(q_vec, gist_vec)
+        scores[name] = TABLE_LEXICAL_WEIGHT * lexical + TABLE_SEMANTIC_WEIGHT * semantic
 
     # Tie-break alphabetically: FalkorDB doesn't guarantee row order without
     # an ORDER BY, so without this, which tables land in the top_k on a score
@@ -356,7 +410,31 @@ def generate_sql(tokenizer, model, model_input, max_length=512):
 # ---------------------------------------------------------------------------
 
 EXEMPLAR_BANK_PATH = os.path.join(PROJECT_ROOT, "eval", "eval_testcases.json")
-EXEMPLAR_MATCH_THRESHOLD = 0.6  # Jaccard token overlap
+
+# Hybrid exemplar-match blend. Calibrated empirically against three cases
+# (see docs/TEST_REPORT.md):
+#   genuine paraphrase   "how many sars were filed per month" vs. the stored
+#                         "How many SARs were filed each month?"
+#                         lexical=0.75  semantic=0.94  -> must MATCH
+#   false-positive risk  "minimum and maximum risk score ... risk period"
+#                         vs. the stored "average and 90th percentile risk
+#                         score ... risk period" (same template, different
+#                         statistic) -- lexical=0.64  semantic=0.77
+#                         -> must NOT match (pure-lexical 0.6 threshold used
+#                         to wrongly match this)
+#   ambiguous edge case  "Break down the risk case count by type" vs. the
+#                         stored "How many risk cases are there for each
+#                         case type?" -- lexical=0.20  semantic=0.76
+#                         -> arguably the same question, but low-confidence;
+#                         left to fall through to model generation rather
+#                         than risk over-matching
+# The general-purpose embedding model doesn't separate "different statistic,
+# same sentence template" from genuine paraphrase as sharply as hoped (0.77
+# vs 0.94 is the whole margin available), so lexical still carries real
+# weight rather than being reduced to a tie-breaker.
+EXEMPLAR_LEXICAL_WEIGHT = 0.4
+EXEMPLAR_SEMANTIC_WEIGHT = 0.6
+EXEMPLAR_MATCH_THRESHOLD = 0.75
 
 
 def load_exemplar_bank():
@@ -368,16 +446,23 @@ def load_exemplar_bank():
 
 def retrieve_exemplar(question, threshold=EXEMPLAR_MATCH_THRESHOLD):
     """Returns (sql, score, matched_question) for the closest exemplar if it
-    clears the similarity threshold, else (None, best_score, None)."""
+    clears the blended lexical+semantic similarity threshold, else
+    (None, best_score, None)."""
     bank = load_exemplar_bank()
+    if not bank:
+        return None, 0.0, None
+
     q_tokens = _tokenize(question)
+    q_vec = semantic_search.embed(question)
+    bank_vecs = semantic_search.embed([ex["question"] for ex in bank])
+
     best_sql, best_question, best_score = None, None, 0.0
-    for ex in bank:
+    for ex, ex_vec in zip(bank, bank_vecs):
         ex_tokens = _tokenize(ex["question"])
-        if not q_tokens or not ex_tokens:
-            continue
         union = q_tokens | ex_tokens
-        score = len(q_tokens & ex_tokens) / len(union) if union else 0.0
+        lexical = len(q_tokens & ex_tokens) / len(union) if union else 0.0
+        semantic = semantic_search.cosine_sim(q_vec, ex_vec)
+        score = EXEMPLAR_LEXICAL_WEIGHT * lexical + EXEMPLAR_SEMANTIC_WEIGHT * semantic
         if score > best_score:
             best_score, best_sql, best_question = score, ex["sql"], ex["question"]
     if best_score >= threshold:
@@ -386,22 +471,47 @@ def retrieve_exemplar(question, threshold=EXEMPLAR_MATCH_THRESHOLD):
 
 
 # ---------------------------------------------------------------------------
-# Schema-grounding repair: the model sometimes invents table names close to
-# but not exactly a real one (e.g. "RiskCase" instead of "RiskCaseEvent", or
-# a wholesale fabrication like "SAR"). Since the retrieval step already knows
-# exactly which tables are real for this question, fuzzy-match every
-# FROM/JOIN target back onto that set and correct it instead of shipping a
-# query that will fail against the actual database.
+# Schema-grounding repair ("schema fixation"): the model sometimes invents
+# table/column names close to but not exactly a real one (e.g. "RiskCase"
+# instead of "RiskCaseEvent"), which difflib's character-overlap fuzzy match
+# catches fine. But some hallucinations are conceptually right and lexically
+# unrelated -- e.g. "SAR" for RiskCaseEvent, whose description literally
+# mentions AML_SAR filings, or "customer" for Party -- where character-level
+# similarity is near zero but semantic similarity is high. Since the
+# retrieval step already knows exactly which tables/columns are real for
+# this question, try difflib first (cheap, precise for near-misses) and
+# fall back to embedding similarity against each candidate's descriptive
+# gist before giving up and leaving the identifier for schema_validator to
+# flag as a violation.
 # ---------------------------------------------------------------------------
 
 _TABLE_REF_RE = re.compile(r"\b(FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
 _COLUMN_REF_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\.\s*([A-Za-z_][A-Za-z0-9_]*)\b")
 
+# Calibrated empirically, not guessed: a short hallucinated identifier
+# embedded against a long table-gist paragraph produces much lower absolute
+# cosine similarity than two comparable-length sentences do (general-purpose
+# sentence embeddings aren't built for this length asymmetry), even when the
+# ranking is correct -- e.g. "transactionlog" scores only 0.49 against
+# Transaction's gist despite being an obvious match, and "sar_filing" scores
+# 0.25 against RiskCaseEvent's. A threshold tuned for symmetric sentence
+# pairs (like the ~0.6-0.9 range used in exemplar matching above) would
+# reject every one of these. Column-level cutoffs sit higher because field
+# descriptions are shorter, so the asymmetry is less severe.
+TABLE_SEMANTIC_REPAIR_CUTOFF = 0.20
+COLUMN_SEMANTIC_REPAIR_CUTOFF = 0.35
 
-def repair_table_names(sql, valid_tables, cutoff=0.5):
+
+def repair_table_names(sql, tables, cutoff=0.5, semantic_cutoff=TABLE_SEMANTIC_REPAIR_CUTOFF):
+    """`tables` is the {name: table_dict} mapping from retrieve_relevant_tables
+    (not just a list of names) so the semantic fallback has descriptions to
+    embed."""
+    valid_tables = list(tables.keys())
+    gist_vecs = None  # computed lazily, once, only if a semantic fallback is ever needed
     corrections = []
 
     def repl(match):
+        nonlocal gist_vecs
         keyword, name = match.group(1), match.group(2)
         for t in valid_tables:
             if t.lower() == name.lower():
@@ -410,23 +520,42 @@ def repair_table_names(sql, valid_tables, cutoff=0.5):
         if close:
             corrections.append({"kind": "table", "stage": "kg_repair", "from": name, "to": close[0]})
             return f"{keyword} {close[0]}"
+        if valid_tables:
+            if gist_vecs is None:
+                gist_vecs = semantic_search.embed([_table_gist(t, tables[t]) for t in valid_tables])
+            name_vec = semantic_search.embed(name.replace("_", " "))
+            sims = [semantic_search.cosine_sim(name_vec, v) for v in gist_vecs]
+            best_i = max(range(len(sims)), key=lambda i: sims[i])
+            if sims[best_i] >= semantic_cutoff:
+                corrections.append({
+                    "kind": "table", "stage": "kg_repair_semantic",
+                    "from": name, "to": valid_tables[best_i],
+                })
+                return f"{keyword} {valid_tables[best_i]}"
         return match.group(0)
 
     repaired = _TABLE_REF_RE.sub(repl, sql)
     return repaired, corrections
 
 
-def repair_column_names(sql, tables, cutoff=0.6):
+def repair_column_names(sql, tables, cutoff=0.6, semantic_cutoff=COLUMN_SEMANTIC_REPAIR_CUTOFF):
     """Fixes qualified column references (alias.column) against the field
     names of the tables actually retrieved for this question. Also undoes a
     common T5 decoding artifact where whitespace gets inserted right after
     the dot (e.g. "T2. party_ide" -> "T2.party_ide") before fuzzy-matching."""
     sql = re.sub(r"(\b[A-Za-z_][A-Za-z0-9_]*\.)\s+", r"\1", sql)
 
-    valid_columns = sorted({f["name"] for t in tables.values() for f in t["fields"]})
+    field_desc = {}
+    for t in tables.values():
+        for f in t["fields"]:
+            field_desc.setdefault(f["name"], f.get("description", ""))
+    valid_columns = sorted(field_desc.keys())
+    col_gist_vecs = None  # computed lazily, once, only if needed
+
     corrections = []
 
     def repl(match):
+        nonlocal col_gist_vecs
         prefix, col = match.group(1), match.group(2)
         for c in valid_columns:
             if c.lower() == col.lower():
@@ -435,6 +564,20 @@ def repair_column_names(sql, tables, cutoff=0.6):
         if close:
             corrections.append({"kind": "column", "stage": "kg_repair", "from": col, "to": close[0]})
             return f"{prefix}.{close[0]}"
+        if valid_columns:
+            if col_gist_vecs is None:
+                col_gist_vecs = semantic_search.embed(
+                    [f"{c}: {field_desc[c]}" for c in valid_columns]
+                )
+            col_vec = semantic_search.embed(col.replace("_", " "))
+            sims = [semantic_search.cosine_sim(col_vec, v) for v in col_gist_vecs]
+            best_i = max(range(len(sims)), key=lambda i: sims[i])
+            if sims[best_i] >= semantic_cutoff:
+                corrections.append({
+                    "kind": "column", "stage": "kg_repair_semantic",
+                    "from": col, "to": valid_columns[best_i],
+                })
+                return f"{prefix}.{valid_columns[best_i]}"
         return match.group(0)
 
     repaired = _COLUMN_REF_RE.sub(repl, sql)
@@ -478,7 +621,7 @@ def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=
     if tokenizer is None or model is None:
         tokenizer, model = load_model()
     raw_sql = generate_sql(tokenizer, model, model_input)
-    table_repaired_sql, table_corrections = repair_table_names(raw_sql, list(tables.keys()))
+    table_repaired_sql, table_corrections = repair_table_names(raw_sql, tables)
     kg_repaired_sql, column_corrections = repair_column_names(table_repaired_sql, tables)
 
     # Final gate: re-check against the full canonical schema (not just the

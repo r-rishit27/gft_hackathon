@@ -56,19 +56,13 @@
   {
     "question": "List the party id and account id for every account-party link",
     "gold_sql": "SELECT party_id, account_id FROM AccountPartyLink",
-    "pred_sql": "SELECT T2.party_id, T1.account_id FROM AccountPartyLink AS T1 JOIN Party AS T2 ON T1.party_id = T2.addresses",
+    "pred_sql": "SELECT party_id, account_id FROM AccountPartyLink",
     "source": "model_generation",
     "corrections": [
       {
         "kind": "column",
-        "stage": "kg_repair",
-        "from": "parties_ip_address",
-        "to": "ip_address"
-      },
-      {
-        "kind": "column",
-        "from": "ip_address",
-        "to": "addresses"
+        "from": "account_ide",
+        "to": "account_id"
       }
     ],
     "schema_valid": true,
@@ -77,12 +71,11 @@
       "AccountPartyLink"
     ],
     "pred_tables": [
-      "AccountPartyLink",
-      "Party"
+      "AccountPartyLink"
     ],
     "table_recall": 1.0,
-    "table_precision": 0.5,
-    "exact_match": false
+    "table_precision": 1.0,
+    "exact_match": true
   },
   {
     "question": "How many login interaction events are there?",
@@ -108,11 +101,13 @@
   {
     "question": "Break down the risk case count by type",
     "gold_sql": "SELECT type, COUNT(DISTINCT risk_case_id) AS case_count FROM RiskCaseEvent GROUP BY type ORDER BY case_count DESC",
-    "pred_sql": "SELECT count(*), type FROM RiskCaseEvent GROUP BY type",
+    "pred_sql": "SELECT TYPE FROM RiskCaseEvent GROUP BY TYPICAL_TYPE ORDER BY count(*) DESC",
     "source": "model_generation",
     "corrections": [],
-    "schema_valid": true,
-    "schema_violations": [],
+    "schema_valid": false,
+    "schema_violations": [
+      "identifier 'TYPICAL_TYPE' does not match any table, alias, or column in scope"
+    ],
     "gold_tables": [
       "RiskCaseEvent"
     ],

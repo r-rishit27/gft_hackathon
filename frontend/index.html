@@ -3,382 +3,514 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>AML Insights Assistant</title>
+<title>AML KPI Copilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
-    --hsbc-red: #DB0011;
-    --hsbc-red-dark: #A4000C;
-    --white: #FFFFFF;
-    --off-white: #F5F5F5;
-    --border: #E3E3E3;
-    --text-dark: #1A1A1A;
-    --text-muted: #6B6B6B;
+    --red: #B3121B;
+    --red-dark: #8E0E15;
+    --bg: #F6F3F2;
+    --ink: #1A1614;
+    --ink-soft: #2A2422;
+    --muted: #8C807B;
+    --muted-2: #6B615D;
+    --border: #E6DFDC;
+    --border-soft: #F0EAE7;
+    --card: #FFFFFF;
+    --pink-bg: #FBF4F4;
+    --pink-border: #F0D9DB;
+    --code-bg: #1A1614;
+    --code-text: #E8E2DF;
+    --code-kw: #FF7B85;
+    --code-str: #C9B98F;
+    --code-num: #9FC58A;
   }
   * { box-sizing: border-box; }
   html, body {
     margin: 0;
     height: 100%;
-    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
-    background: var(--off-white);
-    color: var(--text-dark);
+    font-family: "Libre Franklin", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
   }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-thumb { background: #D8D0CD; border-radius: 9px; }
+  .mono { font-family: "IBM Plex Mono", monospace; }
+
   .app {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    max-width: 820px;
-    margin: 0 auto;
-    background: var(--white);
-    box-shadow: 0 0 24px rgba(0,0,0,0.08);
+    min-height: 560px;
   }
+
   header {
-    background: var(--hsbc-red);
-    color: var(--white);
-    padding: 16px 20px;
     display: flex;
     align-items: center;
     gap: 12px;
-    flex-shrink: 0;
+    padding: 0 18px;
+    height: 54px;
+    background: var(--red);
+    color: #fff;
+    flex: none;
   }
   header .logo {
-    width: 36px;
-    height: 36px;
-    background: var(--white);
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 800;
-    color: var(--hsbc-red);
-    font-size: 16px;
-    flex-shrink: 0;
+    width: 26px; height: 26px; flex: none;
+    background: #fff; color: var(--red);
+    display: flex; align-items: center; justify-content: center;
+    font: 700 12px/1 "Libre Franklin", sans-serif;
+    border-radius: 4px;
   }
-  header .title {
-    display: flex;
-    flex-direction: column;
-    line-height: 1.25;
-  }
-  header .title strong { font-size: 16px; }
-  header .title span { font-size: 12px; opacity: 0.9; }
+  header .brand { font: 600 14px/1.2 "Libre Franklin", sans-serif; }
+  header .brand span { font-weight: 400; opacity: .82; margin-left: 6px; }
   header .status {
     margin-left: auto;
-    font-size: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    opacity: 0.95;
+    display: flex; align-items: center; gap: 7px;
+    font: 400 11px/1 "IBM Plex Mono", monospace;
+    opacity: .92;
   }
-  header .status .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #7CFF9E;
-  }
-  header .status .dot.off { background: #FFC1C1; }
+  header .status .dot { width: 7px; height: 7px; border-radius: 50%; background: #8FE39B; }
+  header .status .dot.off { background: #F3B4B4; }
 
-  .messages {
+  .body {
+    display: flex;
     flex: 1;
-    overflow-y: auto;
-    padding: 20px;
+    min-height: 0;
+  }
+
+  /* --- sidebar --- */
+  aside {
+    width: 236px;
+    flex: none;
+    background: var(--card);
+    border-right: 1px solid var(--border);
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    background: var(--off-white);
+    min-height: 0;
   }
-  .bubble-row { display: flex; }
-  .bubble-row.user { justify-content: flex-end; }
-  .bubble-row.bot { justify-content: flex-start; }
+  aside .new-btn-wrap { padding: 14px 14px 10px; }
+  #new-btn {
+    width: 100%; padding: 9px 12px;
+    background: var(--red); color: #fff; border: 0; border-radius: 4px;
+    font: 600 12.5px/1 "Libre Franklin", sans-serif; cursor: pointer;
+    text-align: left;
+  }
+  #new-btn:hover { background: var(--red-dark); }
 
-  .bubble {
-    max-width: 82%;
-    padding: 12px 14px;
-    border-radius: 14px;
-    font-size: 14px;
-    line-height: 1.5;
+  .side-label {
+    padding: 14px 14px 6px;
+    font: 600 10px/1 "Libre Franklin", sans-serif;
+    letter-spacing: .08em; color: var(--muted);
+  }
+  .chip-list { display: flex; flex-direction: column; gap: 1px; padding: 0 8px; }
+  .chip-item {
+    padding: 8px 8px; border-radius: 4px; cursor: pointer;
+    font: 400 12px/1.35 "Libre Franklin", sans-serif; color: var(--ink-soft);
+    border: none; background: transparent; text-align: left; width: 100%;
+  }
+  .chip-item:hover { background: var(--pink-bg); color: var(--red); }
+  .chip-item .sub { font: 400 10.5px/1 "IBM Plex Mono", monospace; color: var(--muted); margin-top: 3px; }
+
+  #recent-list:empty::after {
+    content: "No questions yet this session.";
+    display: block; padding: 8px; font: 400 11.5px/1.4 "Libre Franklin", sans-serif; color: var(--muted);
+  }
+
+  aside .spacer { flex: 1; }
+  .side-settings {
+    padding: 12px 14px; border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 9px;
+    font: 400 11.5px/1.3 "Libre Franklin", sans-serif; color: var(--muted-2);
+  }
+  .side-settings label { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+  .side-settings select {
+    font: 400 11.5px/1 "IBM Plex Mono", monospace; border: 1px solid var(--border);
+    border-radius: 3px; padding: 3px 5px; background: #fff; color: var(--ink);
+  }
+  .side-footer {
+    padding: 10px 14px 14px; border-top: 1px solid var(--border);
+    font: 400 10.5px/1.6 "IBM Plex Mono", monospace; color: var(--muted);
+  }
+
+  /* --- main --- */
+  main { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+  .thread {
+    flex: 1; overflow-y: auto;
+    padding: 22px 26px 8px;
+  }
+  .thread-inner { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+
+  .msg-user { display: flex; justify-content: flex-end; }
+  .msg-user .bubble {
+    max-width: 72%;
+    background: var(--ink); color: #fff;
+    padding: 11px 15px; border-radius: 12px 12px 2px 12px;
+    font: 400 13.5px/1.5 "Libre Franklin", sans-serif;
+    white-space: pre-wrap; word-break: break-word;
+  }
+
+  .msg-bot { display: flex; gap: 12px; }
+  .msg-bot .avatar {
+    width: 26px; height: 26px; flex: none; margin-top: 2px;
+    background: var(--red); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font: 700 10px/1 "Libre Franklin", sans-serif;
+    border-radius: 3px;
+  }
+  .msg-bot .content { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+  .msg-bot .lede { margin: 0; font: 400 13.5px/1.6 "Libre Franklin", sans-serif; color: var(--ink-soft); }
+  .msg-bot .lede strong { font-weight: 600; }
+  .msg-bot .error-text { color: var(--red-dark); }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+
+  .sql-card .sql-toggle {
+    display: flex; align-items: center; gap: 10px; width: 100%;
+    padding: 10px 14px; background: #fff; border: 0; cursor: pointer; text-align: left;
+  }
+  .sql-card .sql-toggle:hover { background: #FCFAF9; }
+  .sql-card .chevron { font: 500 11px/1 "IBM Plex Mono", monospace; color: var(--red); width: 10px; }
+  .sql-card .sql-title { font: 600 12.5px/1 "Libre Franklin", sans-serif; }
+  .sql-card .sql-sub { font: 400 10.5px/1 "IBM Plex Mono", monospace; color: var(--muted); }
+  .sql-card .sql-body {
+    border-top: 1px solid var(--border-soft);
+    background: var(--code-bg);
+    padding: 14px 16px;
+    overflow-x: auto;
+  }
+  .sql-card pre {
+    margin: 0;
+    font: 400 12px/1.7 "IBM Plex Mono", monospace;
+    color: var(--code-text);
     white-space: pre-wrap;
     word-break: break-word;
   }
-  .bubble.user {
-    background: var(--hsbc-red);
-    color: var(--white);
-    border-bottom-right-radius: 4px;
+  .kw { color: var(--code-kw); }
+  .str { color: var(--code-str); }
+  .num { color: var(--code-num); }
+  .sql-card .sql-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .sql-card .sql-actions button {
+    padding: 5px 10px; background: transparent; border: 1px solid rgba(255,255,255,.28);
+    color: #fff; border-radius: 3px; font: 500 11px/1 "Libre Franklin", sans-serif; cursor: pointer;
   }
-  .bubble.bot {
-    background: var(--white);
-    color: var(--text-dark);
-    border: 1px solid var(--border);
-    border-bottom-left-radius: 4px;
+  .sql-card .sql-actions button:hover { background: rgba(255,255,255,.1); }
+  .sql-card .sql-footer {
+    display: flex; gap: 16px; padding: 9px 14px; border-top: 1px solid var(--border-soft);
+    background: #FCFAF9; flex-wrap: wrap;
   }
-  .bubble.bot.error {
-    border-color: var(--hsbc-red);
-    color: var(--hsbc-red-dark);
-  }
+  .sql-card .sql-footer span { font: 400 10.5px/1.4 "IBM Plex Mono", monospace; color: var(--muted); }
 
-  .sql-block {
-    margin-top: 8px;
-    background: #1A1A1A;
-    color: #F5F5F5;
-    border-radius: 8px;
-    padding: 10px 12px;
-    font-family: "Consolas", "SFMono-Regular", monospace;
-    font-size: 13px;
-    overflow-x: auto;
-    position: relative;
+  .note {
+    display: flex; align-items: flex-start; gap: 9px;
+    padding: 11px 13px; border-radius: 4px;
+    font: 400 12.5px/1.55 "Libre Franklin", sans-serif;
   }
-  .sql-block .copy-btn {
-    position: absolute;
-    top: 6px;
-    right: 8px;
-    background: var(--hsbc-red);
-    color: var(--white);
-    border: none;
-    border-radius: 5px;
-    font-size: 11px;
-    padding: 3px 8px;
-    cursor: pointer;
-  }
-  .sql-block .copy-btn:hover { background: var(--hsbc-red-dark); }
+  .note.warn { background: var(--pink-bg); border: 1px solid var(--pink-border); color: #5A2226; }
+  .note.warn .mark { font: 700 12px/1.5 "Libre Franklin", sans-serif; color: var(--red); }
+  .note ul { margin: 4px 0 0; padding-left: 16px; }
 
-  .schema-warning {
-    margin-top: 8px;
-    background: #FFF4F4;
-    border: 1px solid var(--hsbc-red);
-    color: var(--hsbc-red-dark);
-    border-radius: 8px;
-    padding: 8px 10px;
-    font-size: 12px;
-    line-height: 1.5;
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tag {
+    background: var(--bg); border: 1px solid var(--border); color: var(--red-dark);
+    border-radius: 999px; padding: 2px 9px; font: 400 11px/1.6 "IBM Plex Mono", monospace;
   }
-  .schema-warning ul {
-    margin: 4px 0 0;
-    padding-left: 18px;
-  }
+  .tag.muted { color: var(--muted-2); }
 
-  .meta {
-    margin-top: 8px;
-    font-size: 12px;
-    color: var(--text-muted);
-  }
-  .meta .tables {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 4px;
-  }
-  .meta .tag {
-    background: var(--off-white);
-    border: 1px solid var(--border);
-    color: var(--hsbc-red-dark);
-    border-radius: 999px;
-    padding: 2px 9px;
-    font-size: 11px;
-  }
-
-  .typing {
-    display: flex;
-    gap: 4px;
-    padding: 4px 0;
-  }
+  .typing { display: flex; gap: 4px; padding: 4px 0; }
   .typing span {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--hsbc-red);
-    opacity: 0.4;
-    animation: blink 1.2s infinite;
+    width: 6px; height: 6px; border-radius: 50%; background: var(--red);
+    opacity: .4; animation: blink 1.2s infinite;
   }
-  .typing span:nth-child(2) { animation-delay: 0.2s; }
-  .typing span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+  .typing span:nth-child(2) { animation-delay: .2s; }
+  .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 
-  .composer {
-    border-top: 1px solid var(--border);
-    background: var(--white);
-    padding: 12px 16px;
-    flex-shrink: 0;
+  /* --- composer --- */
+  .composer-wrap {
+    flex: none; padding: 12px 26px 18px;
+    background: linear-gradient(to top, var(--bg) 70%, rgba(246,243,242,0));
   }
-  .composer .options {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    margin-bottom: 8px;
-    font-size: 12px;
-    color: var(--text-muted);
+  .composer-inner { max-width: 860px; margin: 0 auto; }
+  .composer-box {
+    display: flex; align-items: flex-end; gap: 10px;
+    background: #fff; border: 1px solid #DDD4D1; border-radius: 6px; padding: 9px 11px;
   }
-  .composer .options label {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
+  .composer-box:focus-within { border-color: var(--red); }
+  .composer-box textarea {
+    flex: 1; border: 0; outline: 0; resize: none; background: transparent;
+    font: 400 13.5px/1.5 "Libre Franklin", sans-serif; color: var(--ink);
+    padding: 4px 0; max-height: 120px;
   }
-  .composer form {
-    display: flex;
-    gap: 10px;
+  .composer-box button.send {
+    flex: none; padding: 8px 16px; background: var(--red); color: #fff;
+    border: 0; border-radius: 3px; font: 600 12.5px/1 "Libre Franklin", sans-serif; cursor: pointer;
   }
-  .composer textarea {
-    flex: 1;
-    resize: none;
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px 12px;
-    font-size: 14px;
-    font-family: inherit;
-    min-height: 44px;
-    max-height: 120px;
-    outline: none;
+  .composer-box button.send:hover:not(:disabled) { background: var(--red-dark); }
+  .composer-box button.send:disabled { background: #DDA9AC; cursor: not-allowed; }
+  .composer-meta {
+    display: flex; gap: 14px; margin-top: 7px; flex-wrap: wrap;
   }
-  .composer textarea:focus {
-    border-color: var(--hsbc-red);
-    box-shadow: 0 0 0 2px rgba(219,0,17,0.12);
-  }
-  .composer button.send {
-    background: var(--hsbc-red);
-    color: var(--white);
-    border: none;
-    border-radius: 10px;
-    padding: 0 20px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  .composer button.send:hover:not(:disabled) { background: var(--hsbc-red-dark); }
-  .composer button.send:disabled { background: #E0A6AB; cursor: not-allowed; }
+  .composer-meta span { font: 400 10.5px/1.4 "IBM Plex Mono", monospace; color: var(--muted); }
 
-  .hint {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 6px;
+  @media (max-width: 720px) {
+    aside { display: none; }
+    .thread { padding: 16px; }
+    .composer-wrap { padding: 10px 14px 14px; }
   }
 </style>
 </head>
 <body>
 <div class="app">
   <header>
-    <div class="logo">AML</div>
-    <div class="title">
-      <strong>AML Insights Assistant</strong>
-      <span>Text → SQL for the AML knowledge graph</span>
-    </div>
+    <div class="logo">AV</div>
+    <div class="brand">AML KPI Copilot<span>Text → SQL over the AML knowledge graph</span></div>
     <div class="status">
       <span class="dot off" id="status-dot"></span>
       <span id="status-text">checking...</span>
     </div>
   </header>
 
-  <div class="messages" id="messages">
-    <div class="bubble-row bot">
-      <div class="bubble bot">
-        Hi, I'm the AML Insights Assistant. Ask me a question about parties, transactions,
-        risk scores or risk cases in plain English, and I'll generate the read-only SQL
-        query for you to run.
-        <div class="meta">Example: "Show the top 10 parties by risk score"</div>
-      </div>
-    </div>
-  </div>
+  <div class="body">
+    <aside>
+      <div class="new-btn-wrap"><button id="new-btn">+ New question</button></div>
 
-  <div class="composer">
-    <div class="options">
-      <label>
-        <input type="checkbox" id="system-prompt-toggle" checked />
-        Business-analyst / read-only-SQL mode
-      </label>
-      <label>
-        Tables considered:
-        <select id="top-k">
-          <option value="4">4</option>
-          <option value="6" selected>6</option>
-          <option value="10">10</option>
-        </select>
-      </label>
-    </div>
-    <form id="chat-form">
-      <textarea id="question-input" placeholder="Ask about AML data, e.g. 'Count open risk cases per typology'" rows="1"></textarea>
-      <button type="submit" class="send" id="send-btn">Send</button>
-    </form>
-    <div class="hint">Generates SELECT-only SQL. Always review before running against production data.</div>
+      <div class="side-label">TRY ASKING</div>
+      <div class="chip-list" id="suggestions">
+        <button class="chip-item" type="button">Show the top 10 parties by risk score</button>
+        <button class="chip-item" type="button">Count open risk cases per typology</button>
+        <button class="chip-item" type="button">How many SARs were filed each month?</button>
+        <button class="chip-item" type="button">How many parties have a risk score above 0.8?</button>
+      </div>
+
+      <div class="side-label">RECENT QUESTIONS</div>
+      <div class="chip-list" id="recent-list" style="overflow-y: auto;"></div>
+
+      <div class="spacer"></div>
+
+      <div class="side-settings">
+        <label>
+          <input type="checkbox" id="system-prompt-toggle" checked />
+          Business-analyst / read-only-SQL mode
+        </label>
+        <label>
+          Tables considered:
+          <select id="top-k">
+            <option value="4">4</option>
+            <option value="6" selected>6</option>
+            <option value="10">10</option>
+          </select>
+        </label>
+      </div>
+      <div class="side-footer">Knowledge graph: aml_data_model (FalkorDB)<br>Model: T5-LM-Large-text2sql-spider (fine-tuned)</div>
+    </aside>
+
+    <main>
+      <div class="thread" id="thread">
+        <div class="thread-inner" id="thread-inner">
+          <div class="msg-bot">
+            <div class="avatar">AV</div>
+            <div class="content">
+              <p class="lede">Hi, I'm the AML KPI Copilot. Ask a question about parties, transactions, risk scores
+                or risk cases in plain English and I'll generate the read-only SQL for it &mdash; grounded in the
+                AML knowledge graph schema, with every table and column checked before it's shown to you.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer-wrap">
+        <div class="composer-inner">
+          <div class="composer-box">
+            <textarea id="question-input" rows="1" placeholder="Ask about any AML KPI &mdash; e.g. &ldquo;SAR filing volume by month&rdquo;"></textarea>
+            <button type="button" class="send" id="send-btn">Ask</button>
+          </div>
+          <div class="composer-meta">
+            <span>Generates SELECT-only SQL</span>
+            <span>Validated against aml_data_model_schema.json</span>
+            <span>Always review before running against production data</span>
+          </div>
+        </div>
+      </div>
+    </main>
   </div>
 </div>
 
 <script>
-  const API_BASE = window.location.origin; // same-origin when served via FastAPI /ui
-  const messagesEl = document.getElementById("messages");
-  const form = document.getElementById("chat-form");
+  const API_BASE = window.location.origin;
+  const threadEl = document.getElementById("thread");
+  const threadInner = document.getElementById("thread-inner");
   const input = document.getElementById("question-input");
   const sendBtn = document.getElementById("send-btn");
+  const newBtn = document.getElementById("new-btn");
   const systemPromptToggle = document.getElementById("system-prompt-toggle");
   const topKSelect = document.getElementById("top-k");
   const statusDot = document.getElementById("status-dot");
   const statusText = document.getElementById("status-text");
+  const recentListEl = document.getElementById("recent-list");
+  const suggestionsEl = document.getElementById("suggestions");
+
+  const WELCOME_HTML = threadInner.innerHTML;
+  const RECENT_KEY = "aml_copilot_recent_questions";
 
   function scrollToBottom() {
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    threadEl.scrollTop = threadEl.scrollHeight;
+  }
+
+  function loadRecent() {
+    try {
+      return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]");
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveRecent(question) {
+    try {
+      let recent = loadRecent().filter((q) => q !== question);
+      recent.unshift(question);
+      recent = recent.slice(0, 8);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(recent));
+      renderRecent();
+    } catch (e) {
+      /* localStorage unavailable -- degrade silently */
+    }
+  }
+
+  function renderRecent() {
+    const recent = loadRecent();
+    recentListEl.innerHTML = "";
+    recent.forEach((q) => {
+      const btn = document.createElement("button");
+      btn.className = "chip-item";
+      btn.type = "button";
+      btn.textContent = q;
+      btn.addEventListener("click", () => askQuestion(q));
+      recentListEl.appendChild(btn);
+    });
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  }
+
+  function highlightSql(sql) {
+    const keywords = /\b(SELECT|FROM|WHERE|GROUP BY|ORDER BY|JOIN|LEFT JOIN|ON|AS|AND|OR|NOT|IN|IS|NULL|LIMIT|DESC|ASC|DISTINCT|COUNT|COUNTIF|AVG|SUM|MIN|MAX|SAFE_DIVIDE|DATE_TRUNC|DATE|TIMESTAMP_DIFF|APPROX_QUANTILES|OFFSET|HAVING|UNION|WITH|CASE|WHEN|THEN|ELSE|END|UNNEST)\b/gi;
+    let html = escapeHtml(sql);
+    html = html.replace(/('[^']*'|"[^"]*")/g, '$1');
+    const parts = html.split(/([^]*)/);
+    html = parts.map((part) => {
+      if (part.startsWith("")) {
+        return `<span class="str">${part.slice(1, -1)}</span>`;
+      }
+      return part
+        .replace(keywords, '<span class="kw">$1</span>')
+        .replace(/\b(\d+(\.\d+)?)\b/g, '<span class="num">$1</span>');
+    }).join("");
+    return html;
   }
 
   function addUserMessage(text) {
     const row = document.createElement("div");
-    row.className = "bubble-row user";
-    row.innerHTML = `<div class="bubble user"></div>`;
+    row.className = "msg-user";
+    row.innerHTML = `<div class="bubble"></div>`;
     row.querySelector(".bubble").textContent = text;
-    messagesEl.appendChild(row);
+    threadInner.appendChild(row);
     scrollToBottom();
   }
 
-  function addTypingBubble() {
+  function addTypingRow() {
     const row = document.createElement("div");
-    row.className = "bubble-row bot";
+    row.className = "msg-bot";
     row.id = "typing-row";
-    row.innerHTML = `<div class="bubble bot"><div class="typing"><span></span><span></span><span></span></div></div>`;
-    messagesEl.appendChild(row);
+    row.innerHTML = `<div class="avatar">AV</div><div class="content"><div class="typing"><span></span><span></span><span></span></div></div>`;
+    threadInner.appendChild(row);
     scrollToBottom();
-    return row;
   }
 
-  function removeTypingBubble() {
+  function removeTypingRow() {
     const row = document.getElementById("typing-row");
     if (row) row.remove();
   }
 
   function addBotResult(data) {
     const row = document.createElement("div");
-    row.className = "bubble-row bot";
-    const tags = (data.tables_used || [])
-      .map((t) => `<span class="tag">${t}</span>`)
-      .join("");
+    row.className = "msg-bot";
+
     const schemaValid = data.schema_valid !== false;
-    const warningHtml = schemaValid
-      ? ""
-      : `<div class="schema-warning">
-           &#9888; Could not fully validate this SQL against the AML schema. Review before running it.
-           <ul>${(data.schema_violations || []).map((v) => `<li>${v}</li>`).join("")}</ul>
-         </div>`;
-    row.innerHTML = `
-      <div class="bubble bot">
-        Here's the SQL query for that:
-        <div class="sql-block">
-          <button class="copy-btn" type="button">Copy</button>
-          <code></code>
-        </div>
-        ${warningHtml}
-        <div class="meta">
-          Tables used:
-          <div class="tables">${tags}</div>
+    const tableTags = (data.tables_used || []).map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join("");
+    const sourceLabel = data.source === "exemplar_retrieval"
+      ? "matched a verified question" + (data.matched_question ? ` (&ldquo;${escapeHtml(data.matched_question)}&rdquo;)` : "")
+      : "generated by the model";
+    const correctionsNote = (data.corrections && data.corrections.length)
+      ? `<span>${data.corrections.length} auto-correction${data.corrections.length > 1 ? "s" : ""} applied</span>`
+      : "";
+
+    const warningHtml = schemaValid ? "" : `
+      <div class="note warn">
+        <span class="mark">!</span>
+        <div>
+          <strong>Validation note.</strong> This SQL could not be fully verified against the AML schema &mdash; review carefully before running it.
+          <ul>${(data.schema_violations || []).map((v) => `<li>${escapeHtml(v)}</li>`).join("")}</ul>
         </div>
       </div>`;
-    row.querySelector("code").textContent = data.sql;
+
+    row.innerHTML = `
+      <div class="avatar">AV</div>
+      <div class="content">
+        <p class="lede">Here's the SQL for &ldquo;${escapeHtml(data.question)}&rdquo; &mdash; ${sourceLabel}.</p>
+        <div class="card sql-card">
+          <button class="sql-toggle" type="button">
+            <span class="chevron">&#9662;</span>
+            <span class="sql-title">Generated SQL</span>
+            <span class="sql-sub">${schemaValid ? "schema validated" : "validation flagged an issue"}</span>
+          </button>
+          <div class="sql-body">
+            <pre></pre>
+            <div class="sql-actions">
+              <button type="button" class="copy-btn">Copy SQL</button>
+            </div>
+          </div>
+          <div class="sql-footer">
+            <span>Source: aml_data_model_schema.json</span>
+            ${correctionsNote}
+          </div>
+        </div>
+        ${warningHtml}
+        <div class="tags">
+          <span class="tag muted">tables:</span>
+          ${tableTags}
+        </div>
+      </div>`;
+
+    row.querySelector("pre").innerHTML = highlightSql(data.sql);
+
+    const sqlBody = row.querySelector(".sql-body");
+    const chevron = row.querySelector(".chevron");
+    row.querySelector(".sql-toggle").addEventListener("click", () => {
+      const collapsed = sqlBody.style.display === "none";
+      sqlBody.style.display = collapsed ? "block" : "none";
+      chevron.innerHTML = collapsed ? "&#9662;" : "&#9656;";
+    });
+
     row.querySelector(".copy-btn").addEventListener("click", () => {
       navigator.clipboard.writeText(data.sql).catch(() => {});
     });
-    messagesEl.appendChild(row);
+
+    threadInner.appendChild(row);
     scrollToBottom();
   }
 
   function addBotError(message) {
     const row = document.createElement("div");
-    row.className = "bubble-row bot";
-    row.innerHTML = `<div class="bubble bot error"></div>`;
-    row.querySelector(".bubble").textContent = "Something went wrong: " + message;
-    messagesEl.appendChild(row);
+    row.className = "msg-bot";
+    row.innerHTML = `<div class="avatar">AV</div><div class="content"><p class="lede error-text"></p></div>`;
+    row.querySelector(".lede").textContent = "Something went wrong: " + message;
+    threadInner.appendChild(row);
     scrollToBottom();
   }
 
@@ -406,17 +538,22 @@
     input.style.height = "auto";
     input.style.height = Math.min(input.scrollHeight, 120) + "px";
   });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      askQuestion(input.value.trim());
+    }
+  });
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const question = input.value.trim();
-    if (!question) return;
+  async function askQuestion(question) {
+    if (!question || sendBtn.disabled) return;
 
     addUserMessage(question);
+    saveRecent(question);
     input.value = "";
     input.style.height = "auto";
     sendBtn.disabled = true;
-    addTypingBubble();
+    addTypingRow();
 
     try {
       const res = await fetch(`${API_BASE}/generate-sql`, {
@@ -429,19 +566,34 @@
         }),
       });
       const data = await res.json();
-      removeTypingBubble();
+      removeTypingRow();
       if (!res.ok) {
         addBotError(data.detail || "request failed");
       } else {
         addBotResult(data);
       }
     } catch (err) {
-      removeTypingBubble();
+      removeTypingRow();
       addBotError(err.message);
     } finally {
       sendBtn.disabled = false;
     }
+  }
+
+  sendBtn.addEventListener("click", () => askQuestion(input.value.trim()));
+
+  suggestionsEl.querySelectorAll(".chip-item").forEach((btn) => {
+    btn.addEventListener("click", () => askQuestion(btn.textContent));
   });
+
+  newBtn.addEventListener("click", () => {
+    threadInner.innerHTML = WELCOME_HTML;
+    input.value = "";
+    input.style.height = "auto";
+    input.focus();
+  });
+
+  renderRecent();
 </script>
 </body>
 </html>

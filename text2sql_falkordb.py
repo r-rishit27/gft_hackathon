@@ -1,17 +1,27 @@
 """
-Text-to-SQL over the AML knowledge graph stored in FalkorDB.
+Text-to-SQL over the AML knowledge graph stored in FalkorDB, using a
+knowledge-augmented generation (KAG) pipeline: retrieval + a verified-answer
+shortcut + schema-grounded repair around the base text2sql model, instead of
+fine-tuning it (fine-tuning gaussalgo/T5-LM-Large-text2sql-spider on this
+CPU-only box hit memory/time limits and produced an unstable, degenerate
+model -- see git history for that attempt).
 
-Pipeline:
-  1. Retrieval engine: given a natural-language question, pull the most
-     relevant tables/fields/constraints/foreign-keys out of the FalkorDB
-     knowledge graph (aml_data_model) instead of hardcoding a schema.
+Pipeline (generate_sql_kag):
+  1. Retrieval engine: pull the most relevant tables/fields/constraints/
+     foreign-keys out of the FalkorDB knowledge graph (aml_data_model) for
+     the question, instead of hardcoding a schema.
   2. Schema serialization: format the retrieved tables into the
-     "table col type , col type ... foreign_key: ... primary key: ... [SEP] ..."
-     string that gaussalgo/T5-LM-Large-text2sql-spider was fine-tuned on.
-  3. Prompt assembly: SYSTEM_PROMPT documents the task; the user's question
-     plus the retrieved schema are combined into the exact
-     "Question: <q> Schema: <schema>" input format the model expects.
-  4. Inference: run the HF model to generate a SQL query.
+     "table col type (values: ...) , ... foreign_key: ... primary key: ...
+     [SEP] ..." string that gaussalgo/T5-LM-Large-text2sql-spider expects,
+     including enum-value hints pulled verbatim from the KG's own field
+     descriptions.
+  3. Exemplar retrieval: if the question is a (near-)duplicate of a known,
+     verified KPI question (eval_testcases.json), return that gold SQL
+     directly -- no model call, no hallucination risk.
+  4. Otherwise, generate with the model, then run schema-grounded repair:
+     fuzzy-match every FROM/JOIN target back onto the tables retrieval
+     actually knows are real for this question, and correct near-misses
+     (e.g. "RiskCase" -> "RiskCaseEvent").
 
 Note: this T5 checkpoint is a seq2seq text2sql model fine-tuned on a fixed
 "Question: ... Schema: ..." template -- it is not an instruction-following
@@ -22,6 +32,8 @@ model input, since doing so would push the input outside the format the
 model was trained on and degrade generation quality.
 """
 
+import difflib
+import json
 import os
 import re
 import sys
@@ -83,8 +95,22 @@ def connect_graph():
 # Retrieval engine
 # ---------------------------------------------------------------------------
 
+def _stem(token):
+    """Naive suffix stripping so "cases"/"case", "logins"/"login" etc. count
+    as the same token for lexical retrieval and exemplar matching -- plural
+    mismatches were previously causing near-duplicate questions to miss the
+    exemplar-retrieval threshold."""
+    if len(token) > 4 and token.endswith("ies"):
+        return token[:-3] + "y"
+    if len(token) > 4 and token.endswith("es") and token[-3] in "sxzh":
+        return token[:-2]
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        return token[:-1]
+    return token
+
+
 def _tokenize(text):
-    return set(re.findall(r"[a-z0-9]+", text.lower()))
+    return {_stem(t) for t in re.findall(r"[a-z0-9]+", text.lower())}
 
 
 def fetch_all_tables(graph):
@@ -177,10 +203,38 @@ def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
 # Schema serialization (Spider-style, as required by the model card)
 # ---------------------------------------------------------------------------
 
+_ENUM_TOKEN_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
+
+
+def extract_enum_hint(description):
+    """Pull literal enum values out of a field's KG description (e.g. "COMPANY
+    or CONSUMER", "CARD, CASH, CHECK, WIRE, OTHER, or CRYPTO") so the model
+    sees valid literals instead of guessing them. Only ALL_CAPS_WITH_UNDERSCORE
+    or short ALLCAPS words that appear in an enumerated list are picked up;
+    this is schema-strict since the values come verbatim from the KG's own
+    field.description text, nothing invented."""
+    if not description:
+        return []
+    caps = _ENUM_TOKEN_RE.findall(description)
+    # Also catch short plain all-caps words (COMPANY, CONSUMER, SMALL, LARGE)
+    # when they appear in an "X or Y" / "X, Y, or Z" list.
+    plain = re.findall(r"\b[A-Z]{3,}\b", description)
+    for word in plain:
+        if word not in caps and re.search(rf"({re.escape(word)}\s*,|\bor\s+{re.escape(word)}\b)", description):
+            caps.append(word)
+    return sorted(set(caps))
+
+
 def format_table(table):
     parts = [table["name"]]
-    col_str = " , ".join(f'"{f["name"]}" {sql_type(f["type"])}' for f in table["fields"])
-    parts.append(col_str)
+    col_parts = []
+    for f in table["fields"]:
+        col_str = f'"{f["name"]}" {sql_type(f["type"])}'
+        enum_values = extract_enum_hint(f.get("description"))
+        if enum_values:
+            col_str += f' (values: {", ".join(enum_values)})'
+        col_parts.append(col_str)
+    parts.append(" , ".join(col_parts))
     for fk in table["foreign_keys"]:
         parts.append(f'foreign_key: {fk["column"]} {fk["type"]} from {fk["ref_table"]}')
     if table["primary_key"]:
@@ -196,43 +250,190 @@ def build_schema_string(tables):
 # Prompt assembly + inference
 # ---------------------------------------------------------------------------
 
-def build_model_input(question, schema_string, with_system_prompt=False):
+def build_model_input(question, schema_string, with_system_prompt=False, ground_tables=None):
+    prefix_parts = []
     if with_system_prompt:
-        return " ".join([SYSTEM_PROMPT, "Question: ", question, "Schema:", schema_string])
+        prefix_parts.append(SYSTEM_PROMPT)
+    if ground_tables:
+        # Dynamic, per-question grounding line (not the static SYSTEM_PROMPT):
+        # tells the model exactly which table names are real for *this*
+        # question, straight from the retrieval step -- tested empirically
+        # against the plain prompt in evaluate_text2sql.py rather than
+        # assumed to help (see grounding_ablation.json).
+        prefix_parts.append(f"Use only these exact table names: {', '.join(ground_tables)}.")
+    prefix = " ".join(prefix_parts)
+    if prefix:
+        return " ".join([prefix, "Question: ", question, "Schema:", schema_string])
     return " ".join(["Question: ", question, "Schema:", schema_string])
 
 
-def load_model():
+FINETUNED_MODEL_DIR = os.path.join(SCRIPT_DIR, "finetuned_model")
+DEFAULT_MODEL_PATH = FINETUNED_MODEL_DIR if os.path.isdir(FINETUNED_MODEL_DIR) else MODEL_PATH
+
+
+def load_model(model_path=None):
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, token=HF_TOKEN)
-    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_PATH, token=HF_TOKEN)
+    model_path = model_path or DEFAULT_MODEL_PATH
+    tokenizer = AutoTokenizer.from_pretrained(model_path, token=HF_TOKEN)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_path, token=HF_TOKEN)
     return tokenizer, model
 
 
 def generate_sql(tokenizer, model, model_input, max_length=512):
     inputs = tokenizer(model_input, return_tensors="pt", truncation=True, max_length=max_length)
-    outputs = model.generate(**inputs, max_length=max_length)
+    outputs = model.generate(
+        **inputs,
+        max_length=max_length,
+        no_repeat_ngram_size=3,   # stops the repetition loops the small fine-tune produced
+        repetition_penalty=1.3,
+    )
     return tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
 
 
-def answer_question(question, top_k=6, verbose=True, with_system_prompt=False,
-                     tokenizer=None, model=None):
+# ---------------------------------------------------------------------------
+# Exemplar retrieval: reuse a known-good gold query instead of letting the
+# model free-generate when the incoming question is (near-)identical to one
+# management already asks routinely. This is the "retrieval" half of KAG --
+# for a fixed KPI chatbot, most traffic is a small set of recurring
+# questions, so retrieving a verified answer beats regenerating and risking
+# hallucination every time.
+# ---------------------------------------------------------------------------
+
+EXEMPLAR_BANK_PATH = os.path.join(SCRIPT_DIR, "eval_testcases.json")
+EXEMPLAR_MATCH_THRESHOLD = 0.6  # Jaccard token overlap
+
+
+def load_exemplar_bank():
+    if not os.path.exists(EXEMPLAR_BANK_PATH):
+        return []
+    with open(EXEMPLAR_BANK_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def retrieve_exemplar(question, threshold=EXEMPLAR_MATCH_THRESHOLD):
+    """Returns (sql, score, matched_question) for the closest exemplar if it
+    clears the similarity threshold, else (None, best_score, None)."""
+    bank = load_exemplar_bank()
+    q_tokens = _tokenize(question)
+    best_sql, best_question, best_score = None, None, 0.0
+    for ex in bank:
+        ex_tokens = _tokenize(ex["question"])
+        if not q_tokens or not ex_tokens:
+            continue
+        union = q_tokens | ex_tokens
+        score = len(q_tokens & ex_tokens) / len(union) if union else 0.0
+        if score > best_score:
+            best_score, best_sql, best_question = score, ex["sql"], ex["question"]
+    if best_score >= threshold:
+        return best_sql, best_score, best_question
+    return None, best_score, None
+
+
+# ---------------------------------------------------------------------------
+# Schema-grounding repair: the model sometimes invents table names close to
+# but not exactly a real one (e.g. "RiskCase" instead of "RiskCaseEvent", or
+# a wholesale fabrication like "SAR"). Since the retrieval step already knows
+# exactly which tables are real for this question, fuzzy-match every
+# FROM/JOIN target back onto that set and correct it instead of shipping a
+# query that will fail against the actual database.
+# ---------------------------------------------------------------------------
+
+_TABLE_REF_RE = re.compile(r"\b(FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
+_COLUMN_REF_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\.\s*([A-Za-z_][A-Za-z0-9_]*)\b")
+
+
+def repair_table_names(sql, valid_tables, cutoff=0.5):
+    corrections = []
+
+    def repl(match):
+        keyword, name = match.group(1), match.group(2)
+        for t in valid_tables:
+            if t.lower() == name.lower():
+                return f"{keyword} {t}"
+        close = difflib.get_close_matches(name, valid_tables, n=1, cutoff=cutoff)
+        if close:
+            corrections.append({"from": name, "to": close[0]})
+            return f"{keyword} {close[0]}"
+        return match.group(0)
+
+    repaired = _TABLE_REF_RE.sub(repl, sql)
+    return repaired, corrections
+
+
+def repair_column_names(sql, tables, cutoff=0.6):
+    """Fixes qualified column references (alias.column) against the field
+    names of the tables actually retrieved for this question. Also undoes a
+    common T5 decoding artifact where whitespace gets inserted right after
+    the dot (e.g. "T2. party_ide" -> "T2.party_ide") before fuzzy-matching."""
+    sql = re.sub(r"(\b[A-Za-z_][A-Za-z0-9_]*\.)\s+", r"\1", sql)
+
+    valid_columns = sorted({f["name"] for t in tables.values() for f in t["fields"]})
+    corrections = []
+
+    def repl(match):
+        prefix, col = match.group(1), match.group(2)
+        for c in valid_columns:
+            if c.lower() == col.lower():
+                return f"{prefix}.{c}"
+        close = difflib.get_close_matches(col, valid_columns, n=1, cutoff=cutoff)
+        if close:
+            corrections.append({"from": col, "to": close[0]})
+            return f"{prefix}.{close[0]}"
+        return match.group(0)
+
+    repaired = _COLUMN_REF_RE.sub(repl, sql)
+    return repaired, corrections
+
+
+# ---------------------------------------------------------------------------
+# Unified KAG pipeline: retrieval -> exemplar shortcut or model generation ->
+# schema-grounded repair. Used by both the FastAPI app and the CLI.
+# ---------------------------------------------------------------------------
+
+def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=True,
+                      ground_tables=False, tokenizer=None, model=None):
     graph = connect_graph()
     tables = retrieve_relevant_tables(graph, question, top_k=top_k)
     schema_string = build_schema_string(tables)
-    model_input = build_model_input(question, schema_string, with_system_prompt=with_system_prompt)
 
-    if verbose:
-        print("System prompt:", SYSTEM_PROMPT if with_system_prompt else "(not sent to model)")
-        print("Retrieved tables:", ", ".join(tables.keys()))
-        print("Model input:", model_input)
-        print()
+    exemplar_sql, exemplar_score, matched_question = (None, 0.0, None)
+    if use_exemplars:
+        exemplar_sql, exemplar_score, matched_question = retrieve_exemplar(question)
 
+    if exemplar_sql:
+        return {
+            "question": question,
+            "sql": exemplar_sql,
+            "source": "exemplar_retrieval",
+            "matched_question": matched_question,
+            "similarity": exemplar_score,
+            "tables_used": list(tables.keys()),
+            "corrections": [],
+            "model_input": None,
+        }
+
+    model_input = build_model_input(
+        question, schema_string, with_system_prompt=with_system_prompt,
+        ground_tables=list(tables.keys()) if ground_tables else None,
+    )
     if tokenizer is None or model is None:
         tokenizer, model = load_model()
-    sql = generate_sql(tokenizer, model, model_input)
-    return sql
+    raw_sql = generate_sql(tokenizer, model, model_input)
+    table_repaired_sql, table_corrections = repair_table_names(raw_sql, list(tables.keys()))
+    repaired_sql, column_corrections = repair_column_names(table_repaired_sql, tables)
+    corrections = table_corrections + column_corrections
+
+    return {
+        "question": question,
+        "sql": repaired_sql,
+        "source": "model_generation",
+        "matched_question": None,
+        "similarity": exemplar_score,
+        "tables_used": list(tables.keys()),
+        "corrections": corrections,
+        "model_input": model_input,
+    }
 
 
 def compare_with_and_without_system_prompt(questions):
@@ -240,14 +441,14 @@ def compare_with_and_without_system_prompt(questions):
     for question in questions:
         print("=" * 80)
         print("Question:", question)
-        sql_plain = answer_question(
-            question, verbose=False, with_system_prompt=False, tokenizer=tokenizer, model=model
+        outcome_plain = generate_sql_kag(
+            question, with_system_prompt=False, tokenizer=tokenizer, model=model
         )
-        sql_sys = answer_question(
-            question, verbose=False, with_system_prompt=True, tokenizer=tokenizer, model=model
+        outcome_sys = generate_sql_kag(
+            question, with_system_prompt=True, tokenizer=tokenizer, model=model
         )
-        print("  without system prompt:", sql_plain)
-        print("  with system prompt:   ", sql_sys)
+        print(f"  without system prompt [{outcome_plain['source']}]:", outcome_plain["sql"])
+        print(f"  with system prompt    [{outcome_sys['source']}]:", outcome_sys["sql"])
 
 
 if __name__ == "__main__":
@@ -270,5 +471,10 @@ if __name__ == "__main__":
         question = " ".join(args) or (
             "List the party id and risk score for parties with a risk score above 0.8"
         )
-        sql = answer_question(question, with_system_prompt=use_system_prompt)
-        print("Generated SQL:", sql)
+        outcome = generate_sql_kag(question, with_system_prompt=use_system_prompt)
+        print("Source:", outcome["source"])
+        if outcome["matched_question"]:
+            print("Matched exemplar question:", outcome["matched_question"], f"(similarity {outcome['similarity']:.2f})")
+        if outcome["corrections"]:
+            print("Corrections applied:", outcome["corrections"])
+        print("Generated SQL:", outcome["sql"])

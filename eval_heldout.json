@@ -1,0 +1,32 @@
+[
+  {
+    "question": "How many SARs were filed each month?",
+    "sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
+    "note": "exact repeat of an exemplar-bank question -- should hit exemplar retrieval at similarity 1.0"
+  },
+  {
+    "question": "how many sars were filed per month",
+    "sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
+    "note": "near-duplicate phrasing of an exemplar-bank question -- tests whether lexical retrieval still fires on minor rewording"
+  },
+  {
+    "question": "How many parties are there in total?",
+    "sql": "SELECT COUNT(*) FROM Party",
+    "note": "genuinely novel question, not in the exemplar bank -- exercises model generation + schema repair"
+  },
+  {
+    "question": "List the party id and account id for every account-party link",
+    "sql": "SELECT party_id, account_id FROM AccountPartyLink",
+    "note": "novel question"
+  },
+  {
+    "question": "How many login interaction events are there?",
+    "sql": "SELECT COUNT(*) FROM InteractionEvent WHERE type = 'LOGIN'",
+    "note": "novel question"
+  },
+  {
+    "question": "Break down the risk case count by type",
+    "sql": "SELECT type, COUNT(DISTINCT risk_case_id) AS case_count FROM RiskCaseEvent GROUP BY type ORDER BY case_count DESC",
+    "note": "low lexical overlap with the similar exemplar-bank question due to case/cases mismatch -- should fall through to model generation"
+  }
+]

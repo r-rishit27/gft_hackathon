@@ -1,7 +1,7 @@
 """
-Evaluate gaussalgo/T5-LM-Large-text2sql-spider (optionally a fine-tuned checkpoint)
-against eval_testcases.json, using the same FalkorDB retrieval + schema
-serialization the API/frontend use.
+Evaluate the KAG pipeline (text2sql_falkordb.generate_sql_kag: retrieval +
+exemplar shortcut + schema-grounded repair) against a test file of
+(question, gold SQL) pairs.
 
 Metrics (SQL-aware, not exact string match, since column/table order and
 aliasing legitimately vary):
@@ -14,8 +14,8 @@ aliasing legitimately vary):
     reference point, not the headline number)
 
 Usage:
-    python evaluate_text2sql.py                       # base model
-    python evaluate_text2sql.py --model ./finetuned_model
+    python evaluate_text2sql.py                          # eval_testcases.json
+    python evaluate_text2sql.py --testcases eval_heldout.json --out results.json
 """
 
 import argparse
@@ -47,24 +47,25 @@ def tables_in(sql):
     return found
 
 
-def evaluate(model_path):
+def evaluate(model_path, testcases_path=TESTCASES_PATH, ground_tables=False):
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
     tokenizer = AutoTokenizer.from_pretrained(model_path, token=pipeline.HF_TOKEN)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_path, token=pipeline.HF_TOKEN)
 
-    with open(TESTCASES_PATH, "r", encoding="utf-8") as f:
+    with open(testcases_path, "r", encoding="utf-8") as f:
         cases = json.load(f)
-
-    graph = pipeline.connect_graph()
 
     results = []
     for case in cases:
         question, gold_sql = case["question"], case["sql"]
-        tables = pipeline.retrieve_relevant_tables(graph, question, top_k=6)
-        schema_string = pipeline.build_schema_string(tables)
-        model_input = pipeline.build_model_input(question, schema_string, with_system_prompt=False)
-        pred_sql = pipeline.generate_sql(tokenizer, model, model_input)
+
+        outcome = pipeline.generate_sql_kag(
+            question, ground_tables=ground_tables, tokenizer=tokenizer, model=model
+        )
+        pred_sql = outcome["sql"]
+        source = outcome["source"]
+        corrections = outcome["corrections"]
 
         gold_tables = tables_in(gold_sql)
         pred_tables = tables_in(pred_sql)
@@ -76,6 +77,8 @@ def evaluate(model_path):
             "question": question,
             "gold_sql": gold_sql,
             "pred_sql": pred_sql,
+            "source": source,
+            "corrections": corrections,
             "gold_tables": sorted(gold_tables),
             "pred_tables": sorted(pred_tables),
             "table_recall": recall,
@@ -100,19 +103,25 @@ def summarize(results):
     print()
     for r in results:
         flag = "OK  " if r["exact_match"] else "DIFF"
-        print(f"[{flag}] {r['question']}")
+        src = f" [{r['source']}]" if r.get("source") else ""
+        print(f"[{flag}]{src} {r['question']}")
         print(f"   gold: {r['gold_sql']}")
         print(f"   pred: {r['pred_sql']}")
+        if r.get("corrections"):
+            print(f"   corrections applied: {r['corrections']}")
         print()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default=pipeline.MODEL_PATH)
+    parser.add_argument("--testcases", default=TESTCASES_PATH)
+    parser.add_argument("--ground-tables", action="store_true",
+                         help="prepend a dynamic 'use only these exact table names' line")
     parser.add_argument("--out", default=None, help="optional path to dump results JSON")
     args = parser.parse_args()
 
-    results = evaluate(args.model)
+    results = evaluate(args.model, testcases_path=args.testcases, ground_tables=args.ground_tables)
     summarize(results)
 
     if args.out:

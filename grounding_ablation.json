@@ -1,0 +1,102 @@
+[
+  {
+    "question": "How many SARs were filed each month?",
+    "gold_sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
+    "pred_sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "gold_tables": [
+      "RiskCaseEvent"
+    ],
+    "pred_tables": [
+      "RiskCaseEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "how many sars were filed per month",
+    "gold_sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
+    "pred_sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "gold_tables": [
+      "RiskCaseEvent"
+    ],
+    "pred_tables": [
+      "RiskCaseEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "How many parties are there in total?",
+    "gold_sql": "SELECT COUNT(*) FROM Party",
+    "pred_sql": "SELECT count(*) FROM Party",
+    "source": "model_generation",
+    "corrections": [],
+    "gold_tables": [
+      "Party"
+    ],
+    "pred_tables": [
+      "Party"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "List the party id and account id for every account-party link",
+    "gold_sql": "SELECT party_id, account_id FROM AccountPartyLink",
+    "pred_sql": "SELECT T1.party_id, T1.account_id FROM AccountPartyLink AS T1 JOIN Party AS T2 ON T1.party_id = T2.party_id",
+    "source": "model_generation",
+    "corrections": [
+      {
+        "from": "parties",
+        "to": "party_id"
+      }
+    ],
+    "gold_tables": [
+      "AccountPartyLink"
+    ],
+    "pred_tables": [
+      "AccountPartyLink",
+      "Party"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 0.5,
+    "exact_match": false
+  },
+  {
+    "question": "How many login interaction events are there?",
+    "gold_sql": "SELECT COUNT(*) FROM InteractionEvent WHERE type = 'LOGIN'",
+    "pred_sql": "SELECT count(*) FROM login interaction event",
+    "source": "model_generation",
+    "corrections": [],
+    "gold_tables": [
+      "InteractionEvent"
+    ],
+    "pred_tables": [],
+    "table_recall": 0.0,
+    "table_precision": 0.0,
+    "exact_match": false
+  },
+  {
+    "question": "Break down the risk case count by type",
+    "gold_sql": "SELECT type, COUNT(DISTINCT risk_case_id) AS case_count FROM RiskCaseEvent GROUP BY type ORDER BY case_count DESC",
+    "pred_sql": "SELECT count(*), type FROM RiskCaseEvent GROUP BY type",
+    "source": "model_generation",
+    "corrections": [],
+    "gold_tables": [
+      "RiskCaseEvent"
+    ],
+    "pred_tables": [
+      "RiskCaseEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": false
+  }
+]

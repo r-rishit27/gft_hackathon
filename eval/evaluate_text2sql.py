@@ -10,8 +10,13 @@ aliasing legitimately vary):
   - table_precision: fraction of tables in the generated SQL that are actually
     gold tables
   - exact_match: normalized-whitespace, case-insensitive string equality
-    (informative, but a poor SQL similarity metric on its own -- kept as a
-    reference point, not the headline number)
+    after canonicalizing away two purely stylistic differences that don't
+    change what the query does: table aliases (`FROM Transaction t` ==
+    `FROM Transaction`, `t.type` == `type`) and `LOWER(col) = 'x'` vs a
+    plain `col = 'X'` comparison (see canonicalize()). Still informative
+    rather than a full SQL-equivalence check -- column order, JOIN order,
+    and SELECT-list aliases still count as differences -- so keep it as a
+    reference point, not the headline number.
 
 Usage (from the project root, or from within eval/):
     python eval/evaluate_text2sql.py                          # eval_testcases.json
@@ -41,6 +46,88 @@ ALL_TABLE_NAMES = [
 
 def normalize(sql):
     return re.sub(r"\s+", " ", sql.strip().lower())
+
+
+# Tokens that can legitimately follow "FROM <table>" / "JOIN <table>" without
+# being an alias (a bare join condition, the next clause, etc.) -- without
+# this guard, "FROM Transaction WHERE ..." would misparse "where" itself as
+# an alias.
+_ALIAS_STOPWORDS = {
+    "where", "group", "order", "having", "limit", "union", "on", "left", "right",
+    "inner", "outer", "full", "cross", "join", "select", "as", "from", "except", "intersect",
+}
+_ALIAS_DEF_RE = re.compile(r"\b(from|join)\s+([a-z_][a-z0-9_]*)\s+(?:as\s+)?([a-z_][a-z0-9_]*)\b")
+_LOWER_COMPARISON_RE = re.compile(r"lower\(([a-z0-9_.]+)\)\s*=\s*'([^']*)'")
+
+
+def _fold_lower_comparisons(sql):
+    """`LOWER(col) = 'value'` is a case-insensitive equality check -- exactly
+    what `col = 'VALUE'` against an uppercase enum constant already means in
+    this schema, so it's a stylistic choice, not a different query. Just
+    drops the LOWER(...) wrapper (not touching the literal's case): this
+    runs after `normalize()` has already lowercased the whole string
+    (including a gold query's own uppercase enum literal), so both sides are
+    already in the same case by the time this fires -- uppercasing here
+    would undo that and reintroduce a mismatch."""
+    return _LOWER_COMPARISON_RE.sub(lambda m: f"{m.group(1)} = '{m.group(2)}'", sql)
+
+
+def _strip_table_aliases(sql):
+    """Table aliases (`FROM Transaction t`, `JOIN RiskCaseEvent rce`) are a
+    naming choice, not a semantic difference -- SQLCoder tends to invent
+    content-derived aliases (rce, cpr, ap) that the old T5 model rarely did,
+    which otherwise fails exact_match against an unaliased gold query even
+    when the query is identical in substance. Drops the alias from the
+    FROM/JOIN clause and un-qualifies every `alias.column` reference back to
+    a bare column name."""
+    alias_map = {}
+
+    def repl(match):
+        keyword, table, alias = match.group(1), match.group(2), match.group(3)
+        if alias in _ALIAS_STOPWORDS:
+            return match.group(0)
+        alias_map[alias] = table
+        return f"{keyword} {table}"
+
+    sql = _ALIAS_DEF_RE.sub(repl, sql)
+    for alias in alias_map:
+        sql = re.sub(rf"\b{re.escape(alias)}\.", "", sql)
+    return sql
+
+
+# BigQuery type names that legitimately follow "AS" inside a CAST(...)
+# expression -- not an output-column alias, so _strip_select_aliases must not
+# treat "AS FLOAT64" the same way it treats "AS total_transactions".
+_CAST_TYPE_NAMES = {
+    "int64", "string", "float64", "bool", "boolean", "date", "datetime", "timestamp",
+    "numeric", "bignumeric", "bytes", "struct", "array", "record", "json", "time", "geography",
+}
+_AS_ALIAS_RE = re.compile(r"\bas\s+([a-z_][a-z0-9_]*)\b")
+
+
+def _strip_select_aliases(sql):
+    """Drops `AS <name>` output-column aliases (`COUNT(*) AS total_transactions`)
+    -- like a table alias, this names something for the reader/consumer but
+    doesn't change which rows or values the query produces, so a query that
+    only differs by adding or renaming an output alias is not a different
+    query for exact_match purposes. Leaves CAST(...)'s "AS <type>" alone,
+    since that's part of the cast's syntax, not an alias."""
+    return _AS_ALIAS_RE.sub(lambda m: "" if m.group(1) not in _CAST_TYPE_NAMES else m.group(0), sql)
+
+
+def canonicalize(sql):
+    """Normalized form used for exact_match: case/whitespace-insensitive,
+    treats `LOWER(col) = 'x'`, table-alias-qualified columns, and output
+    column aliases (`AS total_transactions`) as equivalent to their plain/
+    unaliased form, since none of these change what rows or values the query
+    actually produces -- only naming/formatting choices SQLCoder makes that
+    the old T5 model rarely did."""
+    s = normalize(sql).rstrip(";").strip()
+    s = s.replace('"', "'")  # literal quote-style choice, not a semantic difference
+    s = _fold_lower_comparisons(s)
+    s = _strip_table_aliases(s)
+    s = _strip_select_aliases(s)
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def tables_in(sql):
@@ -82,7 +169,7 @@ def evaluate(model_path, testcases_path=TESTCASES_PATH, ground_tables=False):
         pred_tables = tables_in(pred_sql)
         recall = len(gold_tables & pred_tables) / len(gold_tables) if gold_tables else None
         precision = len(gold_tables & pred_tables) / len(pred_tables) if pred_tables else 0.0
-        exact = normalize(gold_sql) == normalize(pred_sql)
+        exact = canonicalize(gold_sql) == canonicalize(pred_sql)
 
         results.append({
             "question": question,

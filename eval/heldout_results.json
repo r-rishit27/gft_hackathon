@@ -69,7 +69,7 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "How many login interaction events are there?",
@@ -87,12 +87,12 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "Break down the risk case count by type",
     "gold_sql": "SELECT type, COUNT(DISTINCT risk_case_id) AS case_count FROM RiskCaseEvent GROUP BY type ORDER BY case_count DESC",
-    "pred_sql": "SELECT type, COUNT(*) AS count FROM RiskCaseEvent GROUP BY type ORDER BY type NULLS LAST;",
+    "pred_sql": "SELECT re.type, COUNT(*) AS count FROM RiskCaseEvent re GROUP BY re.type ORDER BY re.type NULLS LAST;",
     "source": "model_generation",
     "corrections": [],
     "schema_valid": true,

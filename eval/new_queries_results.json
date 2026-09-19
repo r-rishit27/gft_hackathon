@@ -15,7 +15,7 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "List the account id and party id for every primary holder link",
@@ -33,7 +33,7 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "How many interaction events were a password change?",
@@ -51,7 +51,7 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "What is the minimum and maximum risk score for each risk period?",
@@ -105,7 +105,7 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "How many retail parties are registered in total?",
@@ -123,12 +123,12 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "Show the resource id and value of the importance metric for each model",
     "gold_sql": "SELECT resource_id, value FROM ExportedMetadata WHERE resource_type = 'Model' AND name = 'Importance'",
-    "pred_sql": "SELECT e.resource_id, e.value FROM ExportedMetadata e WHERE e.name = 'Importance';",
+    "pred_sql": "SELECT em.resource_id, em.value FROM ExportedMetadata em WHERE em.name = 'Importance';",
     "source": "model_generation",
     "corrections": [],
     "schema_valid": true,
@@ -159,7 +159,7 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "What is the earliest join date among all parties?",
@@ -177,7 +177,7 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "How many risk case events are an AML exit?",
@@ -195,7 +195,7 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   },
   {
     "question": "List the party id and supplementary data payload for every party supplementary data record",
@@ -213,6 +213,6 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": false
+    "exact_match": true
   }
 ]

@@ -1,24 +1,21 @@
 """
 Text-to-SQL over the AML knowledge graph stored in FalkorDB, using a
 knowledge-augmented generation (KAG) pipeline: retrieval + a verified-answer
-shortcut + schema-grounded repair around the base text2sql model, instead of
-fine-tuning it (fine-tuning gaussalgo/T5-LM-Large-text2sql-spider on this
-CPU-only box hit memory/time limits and produced an unstable, degenerate
-model -- see git history for that attempt).
+shortcut + schema-grounded repair around Defog SQLCoder
+(mannix/defog-llama3-sqlcoder-8b), run locally through Ollama.
 
 Pipeline (generate_sql_kag):
   1. Retrieval engine: pull the most relevant tables/fields/constraints/
      foreign-keys out of the FalkorDB knowledge graph (aml_data_model) for
      the question, instead of hardcoding a schema.
-  2. Schema serialization: format the retrieved tables into the
-     "table col type (values: ...) , ... foreign_key: ... primary key: ...
-     [SEP] ..." string that gaussalgo/T5-LM-Large-text2sql-spider expects,
-     including enum-value hints pulled verbatim from the KG's own field
-     descriptions.
+  2. Schema serialization: format the retrieved tables as CREATE TABLE DDL
+     (build_ddl_schema), the format SQLCoder was actually fine-tuned on,
+     including enum-value hints as trailing column comments.
   3. Exemplar retrieval: if the question is a (near-)duplicate of a known,
      verified KPI question (eval_testcases.json), return that gold SQL
      directly -- no model call, no hallucination risk.
-  4. Otherwise, generate with the model, then run schema-grounded repair:
+  4. Otherwise, generate with SQLCoder (deterministic: temperature 0, fixed
+     seed) via the local Ollama server, then run schema-grounded repair:
      fuzzy-match every FROM/JOIN target back onto the tables retrieval
      actually knows are real for this question, and correct near-misses
      (e.g. "RiskCase" -> "RiskCaseEvent").
@@ -29,13 +26,10 @@ Pipeline (generate_sql_kag):
      still be recovered, and anything the KG-scoped repair missed gets a
      second, independent check before the query reaches the user.
 
-Note: this T5 checkpoint is a seq2seq text2sql model fine-tuned on a fixed
-"Question: ... Schema: ..." template -- it is not an instruction-following
-chat model. SYSTEM_PROMPT is kept separate (used for logging / documenting
-intent, and as a place to inject task-level instructions if the model is
-later swapped for an instruction-tuned LLM); it is NOT concatenated into the
-model input, since doing so would push the input outside the format the
-model was trained on and degrade generation quality.
+SQLCoder is instruction-following (Llama-3 based), so SYSTEM_PROMPT is passed
+through Ollama's native `system` field and genuinely shapes its behavior --
+unlike a plain seq2seq checkpoint fine-tuned on a fixed template, which would
+just treat extra prompt text as noise.
 """
 
 import json
@@ -67,17 +61,9 @@ FALKORDB_PORT = int(os.environ["FALKORDB_PORT"])
 FALKORDB_USERNAME = os.environ["FALKORDB_USERNAME"]
 FALKORDB_PASSWORD = os.environ["FALKORDB_PASSWORD"]
 FALKORDB_GRAPH = os.environ.get("FALKORDB_GRAPH", "aml_data_model")
-HF_TOKEN = os.environ.get("HF_TOKEN")
-
-MODEL_PATH = "gaussalgo/T5-LM-Large-text2sql-spider"
-
-# Generation backend. "ollama" runs Defog SQLCoder (a Llama-3-8B fine-tune for
-# Postgres/Redshift/Snowflake SQL, on par with capable generalist frontier
-# models per its model card) through a local Ollama server instead of the T5
-# fine-tune -- swapped in because the CPU-only T5 fine-tuning attempts never
-# converged (see git history), whereas SQLCoder needs no fine-tuning at all.
-# "t5" keeps the original gaussalgo checkpoint path for comparison/fallback.
-MODEL_BACKEND = os.environ.get("MODEL_BACKEND", "ollama")
+# Defog SQLCoder (a Llama-3-8B fine-tune for Postgres/Redshift/Snowflake SQL,
+# on par with capable generalist frontier models per its model card), run
+# locally through Ollama -- no fine-tuning needed.
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mannix/defog-llama3-sqlcoder-8b")
 
@@ -91,8 +77,8 @@ SYSTEM_PROMPT = (
     "and columns that are actually present in it, and never invent one."
 )
 
-# BigQuery-ish types (as stored in the KG) -> Spider-style SQL types the model
-# was trained on.
+# BigQuery-ish types (as stored in the KG) -> generic SQL type names used in
+# the CREATE TABLE DDL schema string.
 TYPE_MAP = {
     "STRING": "text",
     "BOOL": "bool",
@@ -362,47 +348,21 @@ def _prune_fields(t, q_tokens):
 
 
 # ---------------------------------------------------------------------------
-# Schema serialization (Spider-style, as required by the model card)
+# Schema serialization (CREATE TABLE DDL, the format SQLCoder was fine-tuned on)
 # ---------------------------------------------------------------------------
 
-MAX_INLINE_ENUM_VALUES = 6  # keeps schema-string length in the range the
-                             # model was fine-tuned on; some fields (e.g.
-                             # education_level_code) now carry 11 authoritative
-                             # values, and showing all of them for every such
-                             # field would bloat the input well past what was
-                             # ever seen in training.
-
-
-def format_table(table):
-    parts = [table["name"]]
-    col_parts = []
-    for f in table["fields"]:
-        col_str = f'"{f["name"]}" {sql_type(f["type"])}'
-        enum_values = _field_enum_values(f)
-        if enum_values:
-            shown = enum_values[:MAX_INLINE_ENUM_VALUES]
-            more = len(enum_values) - len(shown)
-            suffix = f", +{more} more" if more > 0 else ""
-            col_str += f' (values: {", ".join(shown)}{suffix})'
-        col_parts.append(col_str)
-    parts.append(" , ".join(col_parts))
-    for fk in table["foreign_keys"]:
-        parts.append(f'foreign_key: {fk["column"]} {fk["type"]} from {fk["ref_table"]}')
-    if table["primary_key"]:
-        parts.append(f'primary key: {", ".join(table["primary_key"])}')
-    return " ".join(parts)
-
-
-def build_schema_string(tables):
-    return " [SEP] ".join(format_table(t) for t in tables.values())
+MAX_INLINE_ENUM_VALUES = 6  # keeps the schema string a reasonable size; some
+                             # fields (e.g. education_level_code) carry 11
+                             # authoritative values, and showing all of them
+                             # for every such field would bloat the input.
 
 
 def build_ddl_schema(tables):
     """CREATE TABLE-style schema string -- the format SQLCoder was actually
-    fine-tuned on, unlike the T5 checkpoint's flat Spider-style string above.
-    Enum values and descriptions become trailing `--` comments per column,
-    which is exactly how SQLCoder's own training schemas carry that kind of
-    hint (its model card's examples do this for categorical columns).
+    fine-tuned on. Enum values and descriptions become trailing `--` comments
+    per column, which is exactly how SQLCoder's own training schemas carry
+    that kind of hint (its model card's examples do this for categorical
+    columns).
 
     Deliberately bare (unquoted) identifiers, not the Postgres-style
     double-quoted "col" SQLCoder's own DDL examples use: this schema targets
@@ -444,34 +404,9 @@ def build_ddl_schema(tables):
 # Prompt assembly + inference
 # ---------------------------------------------------------------------------
 
-def build_model_input(question, schema_string, with_system_prompt=False, ground_tables=None, feedback=None):
-    prefix_parts = []
-    if with_system_prompt:
-        prefix_parts.append(SYSTEM_PROMPT)
-    if ground_tables:
-        # Dynamic, per-question grounding line (not the static SYSTEM_PROMPT):
-        # tells the model exactly which table names are real for *this*
-        # question, straight from the retrieval step -- tested empirically
-        # against the plain prompt in evaluate_text2sql.py rather than
-        # assumed to help (see grounding_ablation.json).
-        prefix_parts.append(f"Use only these exact table names: {', '.join(ground_tables)}.")
-    if feedback:
-        # Self-correction retry line: this checkpoint isn't instruction-
-        # following (it's fine-tuned strictly on "Question: ... Schema: ...",
-        # like ground_tables above), so this is deliberately short and
-        # plain rather than a full natural-language explanation -- more
-        # verbiage is more likely to push the input further off the
-        # template it was trained on, not less.
-        prefix_parts.append(f"Previous attempt was invalid: {feedback}")
-    prefix = " ".join(prefix_parts)
-    if prefix:
-        return " ".join([prefix, "Question: ", question, "Schema:", schema_string])
-    return " ".join(["Question: ", question, "Schema:", schema_string])
-
-
-# Defog's own recommended SQLCoder prompt shape (instruction-following, unlike
-# the T5 checkpoint) -- the [QUESTION]...[/QUESTION] and [SQL] tags are part
-# of what it was fine-tuned to recognize, not decoration.
+# Defog's own recommended SQLCoder prompt shape -- the
+# [QUESTION]...[/QUESTION] and [SQL] tags are part of what it was fine-tuned
+# to recognize, not decoration.
 SQLCODER_PROMPT_TEMPLATE = """### Task
 Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
 
@@ -555,50 +490,31 @@ def generate_sql_ollama(prompt, system=None, model=None, host=None, max_retries=
     return _extract_sql(resp.json().get("response", ""))
 
 
-FINETUNED_MODEL_DIR = os.path.join(PROJECT_ROOT, "training", "finetuned_model")
-DEFAULT_MODEL_PATH = FINETUNED_MODEL_DIR if os.path.isdir(FINETUNED_MODEL_DIR) else MODEL_PATH
-
-
-def load_model(model_path=None):
-    if MODEL_BACKEND == "ollama":
-        # No local weights to load -- generation goes through the Ollama
-        # server's HTTP API. Verify it's actually reachable now, at startup,
-        # instead of failing opaquely on the first real request.
-        try:
-            tags = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
-            tags.raise_for_status()
-            names = {m.get("name") for m in tags.json().get("models", [])}
-            if not any(OLLAMA_MODEL in n for n in names):
-                print(
-                    f"WARNING: '{OLLAMA_MODEL}' not found in `ollama list` output "
-                    f"({names or 'no models pulled'}); pull it with "
-                    f"`ollama pull {OLLAMA_MODEL}` before generating."
-                )
-        except requests.RequestException as exc:
-            raise RuntimeError(
-                f"Ollama server not reachable at {OLLAMA_HOST}. Start it (the Ollama app, or "
-                f"`ollama serve`) and ensure `{OLLAMA_MODEL}` is pulled "
-                f"(`ollama pull {OLLAMA_MODEL}`)."
-            ) from exc
-        return None, None
-
-    from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-
-    model_path = model_path or DEFAULT_MODEL_PATH
-    tokenizer = AutoTokenizer.from_pretrained(model_path, token=HF_TOKEN)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_path, token=HF_TOKEN)
-    return tokenizer, model
-
-
-def generate_sql(tokenizer, model, model_input, max_length=512):
-    inputs = tokenizer(model_input, return_tensors="pt", truncation=True, max_length=max_length)
-    outputs = model.generate(
-        **inputs,
-        max_length=max_length,
-        no_repeat_ngram_size=3,   # stops the repetition loops the small fine-tune produced
-        repetition_penalty=1.3,
-    )
-    return tokenizer.batch_decode(outputs, skip_special_tokens=True)[0]
+def load_model():
+    """No local weights to load -- generation goes through the Ollama
+    server's HTTP API (generate_sql_ollama). Verify it's actually reachable
+    now, at startup, instead of failing opaquely on the first real request.
+    Returns (None, None); kept as a function (rather than removed outright)
+    so callers (app.py's lifespan, evaluate_text2sql.py) have one place to
+    do this startup check without depending on generate_sql_ollama's
+    internals."""
+    try:
+        tags = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
+        tags.raise_for_status()
+        names = {m.get("name") for m in tags.json().get("models", [])}
+        if not any(OLLAMA_MODEL in n for n in names):
+            print(
+                f"WARNING: '{OLLAMA_MODEL}' not found in `ollama list` output "
+                f"({names or 'no models pulled'}); pull it with "
+                f"`ollama pull {OLLAMA_MODEL}` before generating."
+            )
+    except requests.RequestException as exc:
+        raise RuntimeError(
+            f"Ollama server not reachable at {OLLAMA_HOST}. Start it (the Ollama app, or "
+            f"`ollama serve`) and ensure `{OLLAMA_MODEL}` is pulled "
+            f"(`ollama pull {OLLAMA_MODEL}`)."
+        ) from exc
+    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -805,7 +721,7 @@ def repair_column_names(sql, tables, cutoff=0.6, semantic_cutoff=COLUMN_SEMANTIC
 
 def _summarize_violations(violations, max_items=3):
     """Short, plain feedback line for the self-correction retry -- not a
-    full explanation (see build_model_input's feedback docstring for why
+    full explanation (see build_sqlcoder_input's feedback docstring for why
     this stays terse rather than verbose)."""
     shown = violations[:max_items]
     text = "; ".join(shown)
@@ -814,21 +730,13 @@ def _summarize_violations(violations, max_items=3):
     return text
 
 
-def _attempt_generation(question, tables, schema_string, with_system_prompt, ground_tables,
-                         tokenizer, model, feedback=None):
+def _attempt_generation(question, tables, with_system_prompt, ground_tables, feedback=None):
     """One generate-repair-validate pass. Returns (sql, corrections, violations, model_input)."""
     resolved_ground_tables = list(tables.keys()) if ground_tables else None
-    if MODEL_BACKEND == "ollama":
-        model_input = build_sqlcoder_input(
-            question, tables, ground_tables=resolved_ground_tables, feedback=feedback,
-        )
-        raw_sql = generate_sql_ollama(model_input, system=SYSTEM_PROMPT if with_system_prompt else None)
-    else:
-        model_input = build_model_input(
-            question, schema_string, with_system_prompt=with_system_prompt,
-            ground_tables=resolved_ground_tables, feedback=feedback,
-        )
-        raw_sql = generate_sql(tokenizer, model, model_input)
+    model_input = build_sqlcoder_input(
+        question, tables, ground_tables=resolved_ground_tables, feedback=feedback,
+    )
+    raw_sql = generate_sql_ollama(model_input, system=SYSTEM_PROMPT if with_system_prompt else None)
     table_repaired_sql, table_corrections = repair_table_names(raw_sql, tables)
     kg_repaired_sql, column_corrections = repair_column_names(table_repaired_sql, tables)
     validated_sql, schema_corrections, violations = schema_validator.validate_and_fix(kg_repaired_sql)
@@ -837,10 +745,9 @@ def _attempt_generation(question, tables, schema_string, with_system_prompt, gro
 
 
 def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=True,
-                      ground_tables=False, retry_on_invalid=False, tokenizer=None, model=None):
+                      ground_tables=False, retry_on_invalid=False):
     graph = connect_graph()
     tables = retrieve_relevant_tables(graph, question, top_k=top_k)
-    schema_string = build_schema_string(tables)
 
     exemplar_sql, exemplar_score, matched_question = (None, 0.0, None)
     if use_exemplars:
@@ -862,11 +769,8 @@ def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=
             "retried": False,
         }
 
-    if tokenizer is None or model is None:
-        tokenizer, model = load_model()
-
     validated_sql, corrections, violations, model_input = _attempt_generation(
-        question, tables, schema_string, with_system_prompt, ground_tables, tokenizer, model
+        question, tables, with_system_prompt, ground_tables
     )
 
     retried = False
@@ -879,12 +783,10 @@ def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=
         # each pass.
         retry_top_k = min(top_k * 2, 12)  # 12 == the whole schema right now
         retry_tables = retrieve_relevant_tables(graph, question, top_k=retry_top_k)
-        retry_schema_string = build_schema_string(retry_tables)
         feedback = _summarize_violations(violations)
 
         retry_sql, retry_corrections, retry_violations, retry_model_input = _attempt_generation(
-            question, retry_tables, retry_schema_string, with_system_prompt, ground_tables,
-            tokenizer, model, feedback=feedback,
+            question, retry_tables, with_system_prompt, ground_tables, feedback=feedback,
         )
         retried = True
 
@@ -912,16 +814,12 @@ def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=
 
 
 def compare_with_and_without_system_prompt(questions):
-    tokenizer, model = load_model()
+    load_model()  # verify Ollama is reachable before running through all questions
     for question in questions:
         print("=" * 80)
         print("Question:", question)
-        outcome_plain = generate_sql_kag(
-            question, with_system_prompt=False, tokenizer=tokenizer, model=model
-        )
-        outcome_sys = generate_sql_kag(
-            question, with_system_prompt=True, tokenizer=tokenizer, model=model
-        )
+        outcome_plain = generate_sql_kag(question, with_system_prompt=False)
+        outcome_sys = generate_sql_kag(question, with_system_prompt=True)
         print(f"  without system prompt [{outcome_plain['source']}]:", outcome_plain["sql"])
         print(f"  with system prompt    [{outcome_sys['source']}]:", outcome_sys["sql"])
 

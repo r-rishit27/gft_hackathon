@@ -75,9 +75,9 @@ def _fold_lower_comparisons(sql):
 def _strip_table_aliases(sql):
     """Table aliases (`FROM Transaction t`, `JOIN RiskCaseEvent rce`) are a
     naming choice, not a semantic difference -- SQLCoder tends to invent
-    content-derived aliases (rce, cpr, ap) that the old T5 model rarely did,
-    which otherwise fails exact_match against an unaliased gold query even
-    when the query is identical in substance. Drops the alias from the
+    content-derived aliases (rce, cpr, ap), which otherwise fails exact_match
+    against an unaliased gold query even when the query is identical in
+    substance. Drops the alias from the
     FROM/JOIN clause and un-qualifies every `alias.column` reference back to
     a bare column name."""
     alias_map = {}
@@ -120,8 +120,7 @@ def canonicalize(sql):
     treats `LOWER(col) = 'x'`, table-alias-qualified columns, and output
     column aliases (`AS total_transactions`) as equivalent to their plain/
     unaliased form, since none of these change what rows or values the query
-    actually produces -- only naming/formatting choices SQLCoder makes that
-    the old T5 model rarely did."""
+    actually produces -- only stylistic choices SQLCoder makes."""
     s = normalize(sql).rstrip(";").strip()
     s = s.replace('"', "'")  # literal quote-style choice, not a semantic difference
     s = _fold_lower_comparisons(s)
@@ -138,18 +137,10 @@ def tables_in(sql):
     return found
 
 
-def evaluate(model_path, testcases_path=TESTCASES_PATH, ground_tables=False):
-    # Only load T5 weights for the "t5" backend -- pipeline.generate_sql_kag
-    # ignores tokenizer/model entirely when MODEL_BACKEND=ollama, so loading
-    # them here would just waste ~5-10s per run and clutter the eval log with
-    # an unused model's weight-loading progress bar.
-    if pipeline.MODEL_BACKEND == "ollama":
-        tokenizer, model = pipeline.load_model()
-    else:
-        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-
-        tokenizer = AutoTokenizer.from_pretrained(model_path, token=pipeline.HF_TOKEN)
-        model = AutoModelForSeq2SeqLM.from_pretrained(model_path, token=pipeline.HF_TOKEN)
+def evaluate(testcases_path=TESTCASES_PATH, ground_tables=False):
+    # Verify the local Ollama server is reachable before running the whole
+    # suite through it -- generation goes through generate_sql_ollama.
+    pipeline.load_model()
 
     with open(testcases_path, "r", encoding="utf-8") as f:
         cases = json.load(f)
@@ -158,9 +149,7 @@ def evaluate(model_path, testcases_path=TESTCASES_PATH, ground_tables=False):
     for case in cases:
         question, gold_sql = case["question"], case["sql"]
 
-        outcome = pipeline.generate_sql_kag(
-            question, ground_tables=ground_tables, tokenizer=tokenizer, model=model
-        )
+        outcome = pipeline.generate_sql_kag(question, ground_tables=ground_tables)
         pred_sql = outcome["sql"]
         source = outcome["source"]
         corrections = outcome["corrections"]
@@ -220,14 +209,13 @@ def summarize(results):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default=pipeline.DEFAULT_MODEL_PATH)
     parser.add_argument("--testcases", default=TESTCASES_PATH)
     parser.add_argument("--ground-tables", action="store_true",
                          help="prepend a dynamic 'use only these exact table names' line")
     parser.add_argument("--out", default=None, help="optional path to dump results JSON")
     args = parser.parse_args()
 
-    results = evaluate(args.model, testcases_path=args.testcases, ground_tables=args.ground_tables)
+    results = evaluate(testcases_path=args.testcases, ground_tables=args.ground_tables)
     summarize(results)
 
     if args.out:

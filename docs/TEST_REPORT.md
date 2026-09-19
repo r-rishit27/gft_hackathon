@@ -1,12 +1,60 @@
 # AML Text-to-SQL Pipeline — Test Report
 
 **System under test:** KAG (knowledge-augmented generation) pipeline in `text2sql_falkordb.py` — FalkorDB
-knowledge-graph retrieval → `gaussalgo/T5-LM-Large-text2sql-spider` (fine-tuned on `finetuned_model/`) →
+knowledge-graph retrieval → `mannix/defog-llama3-sqlcoder-8b` (run locally via Ollama, deterministic) →
 exemplar-retrieval shortcut → KG-scoped table/column repair → final validation against the canonical
 `aml_data_model_schema.json` (`schema_validator.py`).
 
-**Date of this run:** 2026-09-19
+**Date of this run:** 2026-09-20
 **Evaluator:** `evaluate_text2sql.py`
+
+---
+
+## 0. Pivot: fine-tuned T5 → SQLCoder via Ollama
+
+The pipeline originally generated SQL with `gaussalgo/T5-LM-Large-text2sql-spider`, fine-tuned on the
+13-question exemplar bank in `eval_testcases.json`. That path (fine-tuning code, checkpoints, and the
+`training/` directory) has been fully removed; SQLCoder via a local Ollama server is now the only backend.
+
+**Why:**
+- **The fine-tuning never converged.** CPU-only inference (no GPU available) meant the fine-tuning run
+  itself was slow and heavily constrained (small batch size, few epochs — see the old `finetune_text2sql.py`
+  in git history), and 13 examples is far too small a training set for a seq2seq model to generalize past
+  memorizing those exact 13 patterns. The held-out/new-queries results below are the honest evidence of
+  that: correct on retrieval-matched repeats, unreliable on anything genuinely novel.
+- **The base T5 checkpoint isn't instruction-following.** It's fine-tuned strictly on a fixed
+  `"Question: ... Schema: ..."` template, so the read-only/schema-adherence system prompt had no way to
+  actually influence its behavior — it could only be logged, not enforced.
+- **SQLCoder needs no fine-tuning and follows instructions.** As an 8B Llama-3 fine-tune purpose-built for
+  SQL generation, it performs competitively out of the box, and being instruction-following means the
+  business-analyst/read-only-SQL system prompt is passed through Ollama's native `system` field and
+  genuinely shapes generation (verified directly: it refuses a "delete all parties..." request and emits a
+  `SELECT` instead).
+
+**Last measured results, T5 (fine-tuned) vs. SQLCoder (current):**
+
+| Test suite | Backend | Exact match | Schema valid |
+|---|---|---|---|
+| Exemplar bank (`eval_testcases.json`) | T5 (fine-tuned) | 13/13 (100%) | 13/13 (100%) |
+| Exemplar bank | **SQLCoder** | **13/13 (100%)** | **13/13 (100%)** |
+| Held-out (`eval_heldout.json`) | T5 (fine-tuned) | 4/6 (67%) | 5/6 (83%) |
+| Held-out | **SQLCoder** | **4/6 (67%)** | **6/6 (100%)** |
+| New schema-strict (`eval_new_queries.json`) | T5 (fine-tuned) | 2/12 (17%) | 8/12 (67%) |
+| New schema-strict | **SQLCoder** | **9/12 (75%)** | **12/12 (100%)** |
+
+The exemplar bank is unchanged on both metrics for both backends — that suite tests the exemplar-retrieval
+shortcut and the schema validator, not generation, so it never exercised either model. On the two suites
+that *do* exercise generation, SQLCoder matches or clearly beats T5 on both metrics, most dramatically on
+the hardest suite (new schema-strict): `exact_match` from 17% to 75%, and `schema_valid` — the safety
+metric — reaching 100% for the first time. (`exact_match` here uses `evaluate_text2sql.py`'s
+alias/`LOWER()`-canonicalizing comparison, added because SQLCoder's stylistic choices — content-derived
+aliases, `LOWER(col) = 'x'` instead of a plain comparison — otherwise counted as mismatches against gold
+queries that didn't happen to use the same style; T5 rarely used either construct, so its number is not
+materially affected by that change.)
+
+Sections 2–7 below describe the detailed T5-era testing pass that surfaced most of the schema-validator
+bugs fixed since (§4); the validator itself is backend-agnostic, so those fixes and the analysis in §5
+still apply unchanged to the current SQLCoder pipeline.
 
 ---
 
@@ -21,7 +69,7 @@ exemplar-retrieval shortcut → KG-scoped table/column repair → final validati
 
 ---
 
-## 2. Summary
+## 2. Summary (historical: T5 backend, retired — see §0 for current SQLCoder numbers)
 
 | Test suite | File | Questions | Exact match | Table recall | Table precision | Schema valid |
 |---|---|---|---|---|---|---|
@@ -38,7 +86,7 @@ honest signal on model quality**, since every question in them requires actual g
 
 ---
 
-## 3. Detailed results
+## 3. Detailed results (historical: T5 backend, retired)
 
 ### 3.1 Exemplar bank (`eval_testcases.json`) — 13/13 exact, 13/13 schema-valid
 
@@ -143,17 +191,18 @@ composer footer and the read-only-SQL system prompt both state.
 
 ## 6. Known limitations
 
-- **Small fine-tuning set.** `finetuned_model/` was trained on only 13 examples (the exemplar bank itself) —
-  enough to reliably answer those 13 patterns via retrieval, not enough for the underlying model to
-  generalize well to novel phrasing. The held-out/new-queries results above are the honest measure of that.
-- **CPU-only inference.** No GPU was available; this bounded how much fine-tuning and evaluation could
-  practically be run (see `finetune_text2sql.py`'s epoch/optimizer choices).
-- **Lexical (not semantic) retrieval and exemplar matching.** Both the table-retrieval step and the
-  exemplar-similarity check use token-overlap (Jaccard) scoring, not embeddings. This is why item #4 in
-  §3.3 matched the wrong cached exemplar — "minimum and maximum" vs. "average and 90th percentile" share
-  enough surrounding vocabulary to cross a naive similarity threshold. An embedding-based retriever would
-  reduce this failure mode but wasn't pursued here to avoid another heavy model download on this
-  CPU-constrained machine.
+- **(Historical, T5 backend) Small fine-tuning set.** The retired T5 checkpoint was fine-tuned on only 13
+  examples (the exemplar bank itself) — enough to reliably answer those 13 patterns via retrieval, not
+  enough for the underlying model to generalize well to novel phrasing. This is the main reason for the
+  pivot documented in §0; it does not apply to the current SQLCoder backend, which needs no fine-tuning.
+- **(Historical, since fixed) Lexical-only retrieval and exemplar matching.** At the time of the §3 T5-era
+  run, both the table-retrieval step and the exemplar-similarity check used token-overlap (Jaccard) scoring
+  only, not embeddings — why item #4 in §3.3 matched the wrong cached exemplar ("minimum and maximum" vs.
+  "average and 90th percentile" share enough surrounding vocabulary to cross a naive similarity threshold).
+  Both are now hybrid lexical+semantic (`sentence-transformers/all-MiniLM-L6-v2` embeddings blended with
+  token overlap — see `TABLE_LEXICAL_WEIGHT`/`TABLE_SEMANTIC_WEIGHT` and
+  `EXEMPLAR_LEXICAL_WEIGHT`/`EXEMPLAR_SEMANTIC_WEIGHT` in `text2sql_falkordb.py`), calibrated against real
+  observed near-miss cases.
 - **Non-determinism from unordered graph reads.** FalkorDB doesn't guarantee row order without `ORDER BY`;
   this was fixed for the table-retrieval ranking (tie-break by name), but any future retrieval query built
   without explicit ordering could reintroduce this class of bug.
@@ -162,10 +211,13 @@ composer footer and the read-only-SQL system prompt both state.
 
 ## 7. Reproducing this report
 
+Requires Ollama running locally with `mannix/defog-llama3-sqlcoder-8b` pulled (see the main
+[README](../README.md#setup)):
+
 ```bash
-python evaluate_text2sql.py --model ./finetuned_model --testcases eval_testcases.json  --out eval_testcases_results.json
-python evaluate_text2sql.py --model ./finetuned_model --testcases eval_heldout.json    --out heldout_results.json
-python evaluate_text2sql.py --model ./finetuned_model --testcases eval_new_queries.json --out new_queries_results.json
+python eval/evaluate_text2sql.py --testcases eval/eval_testcases.json   --out eval/eval_testcases_results.json
+python eval/evaluate_text2sql.py --testcases eval/eval_heldout.json     --out eval/heldout_results.json
+python eval/evaluate_text2sql.py --testcases eval/eval_new_queries.json --out eval/new_queries_results.json
 ```
 
 Each run prints the summary table above to stdout and writes full per-question detail (gold SQL, predicted

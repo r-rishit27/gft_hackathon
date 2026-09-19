@@ -3,7 +3,8 @@ FastAPI service: natural-language question in, SQL query out.
 
 Wraps the retrieval-augmented text2sql pipeline in pipeline/text2sql_falkordb.py:
 question -> retrieve relevant tables from the FalkorDB knowledge graph ->
-serialize schema -> gaussalgo/T5-LM-Large-text2sql-spider -> SQL string.
+serialize schema as DDL -> mannix/defog-llama3-sqlcoder-8b (via a local
+Ollama server) -> SQL string.
 
 Run from the project root:
     uvicorn app:app --host 0.0.0.0 --port 8000
@@ -21,17 +22,17 @@ from pydantic import BaseModel, Field
 
 from pipeline import text2sql_falkordb as pipeline
 
-model_state = {}
+app_state = {"ollama_ready": False}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load the model once at startup instead of per-request.
-    tokenizer, model = pipeline.load_model()
-    model_state["tokenizer"] = tokenizer
-    model_state["model"] = model
+    # Verify the Ollama server is reachable once at startup instead of
+    # failing opaquely on the first request.
+    pipeline.load_model()
+    app_state["ollama_ready"] = True
     yield
-    model_state.clear()
+    app_state["ollama_ready"] = False
 
 
 app = FastAPI(
@@ -110,8 +111,6 @@ def generate_sql(request: QuestionRequest):
             use_exemplars=request.use_exemplars,
             ground_tables=request.ground_tables,
             retry_on_invalid=request.retry_on_invalid,
-            tokenizer=model_state["tokenizer"],
-            model=model_state["model"],
         )
     except Exception as exc:  # noqa: BLE001 - surface pipeline errors to the caller
         raise HTTPException(status_code=500, detail=str(exc)) from exc
@@ -134,7 +133,7 @@ def generate_sql(request: QuestionRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "model_loaded": "model" in model_state}
+    return {"status": "ok", "ollama_ready": app_state["ollama_ready"]}
 
 
 # Serve the chat frontend at /ui (mounted last so it doesn't shadow the API routes above).

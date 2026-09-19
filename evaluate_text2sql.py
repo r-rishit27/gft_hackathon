@@ -79,6 +79,8 @@ def evaluate(model_path, testcases_path=TESTCASES_PATH, ground_tables=False):
             "pred_sql": pred_sql,
             "source": source,
             "corrections": corrections,
+            "schema_valid": outcome["schema_valid"],
+            "schema_violations": outcome["schema_violations"],
             "gold_tables": sorted(gold_tables),
             "pred_tables": sorted(pred_tables),
             "table_recall": recall,
@@ -96,19 +98,25 @@ def summarize(results):
     avg_recall = sum(recalls) / len(recalls) if recalls else 0.0
     avg_precision = sum(r["table_precision"] for r in results) / n if n else 0.0
 
+    schema_valid_count = sum(1 for r in results if r.get("schema_valid"))
+
     print(f"\n{'='*80}\nSummary over {n} test cases\n{'='*80}")
     print(f"  exact_match:      {exact}/{n} ({exact/n:.0%})")
     print(f"  avg table recall: {avg_recall:.0%}  (did it use the right tables)")
     print(f"  avg table prec.:  {avg_precision:.0%}  (did it avoid extra/wrong tables)")
+    print(f"  schema_valid:     {schema_valid_count}/{n} ({schema_valid_count/n:.0%})  (every table/column resolves against aml_data_model_schema.json)")
     print()
     for r in results:
         flag = "OK  " if r["exact_match"] else "DIFF"
         src = f" [{r['source']}]" if r.get("source") else ""
-        print(f"[{flag}]{src} {r['question']}")
+        valid_flag = "valid" if r.get("schema_valid") else "INVALID"
+        print(f"[{flag}]{src} [{valid_flag}] {r['question']}")
         print(f"   gold: {r['gold_sql']}")
         print(f"   pred: {r['pred_sql']}")
         if r.get("corrections"):
             print(f"   corrections applied: {r['corrections']}")
+        if r.get("schema_violations"):
+            print(f"   unresolved schema violations: {r['schema_violations']}")
         print()
 
 

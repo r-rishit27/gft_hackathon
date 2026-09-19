@@ -5,6 +5,8 @@
     "pred_sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
     "source": "exemplar_retrieval",
     "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "RiskCaseEvent"
     ],
@@ -21,6 +23,8 @@
     "pred_sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
     "source": "exemplar_retrieval",
     "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "RiskCaseEvent"
     ],
@@ -37,6 +41,8 @@
     "pred_sql": "SELECT count(*) FROM Party",
     "source": "model_generation",
     "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "Party"
     ],
@@ -54,10 +60,14 @@
     "source": "model_generation",
     "corrections": [
       {
+        "kind": "column",
+        "stage": "kg_repair",
         "from": "party_ide",
         "to": "party_id"
       }
     ],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "AccountPartyLink"
     ],
@@ -75,6 +85,13 @@
     "pred_sql": "SELECT count(*) FROM login interaction event",
     "source": "model_generation",
     "corrections": [],
+    "schema_valid": false,
+    "schema_violations": [
+      "table 'login' not found in schema",
+      "identifier 'login' does not match any table, alias, or column in scope",
+      "identifier 'interaction' does not match any table, alias, or column in scope",
+      "identifier 'event' does not match any table, alias, or column in scope"
+    ],
     "gold_tables": [
       "InteractionEvent"
     ],
@@ -89,6 +106,8 @@
     "pred_sql": "SELECT count(*), type FROM RiskCaseEvent GROUP BY type",
     "source": "model_generation",
     "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "RiskCaseEvent"
     ],

@@ -70,6 +70,8 @@ class QuestionRequest(BaseModel):
 class Correction(BaseModel):
     from_: str = Field(..., alias="from")
     to: str
+    kind: str | None = None  # "table" or "column"
+    stage: str | None = None  # "kg_repair" (retrieval-scoped) or omitted (canonical schema_validator)
 
     class Config:
         populate_by_name = True
@@ -83,6 +85,8 @@ class QuestionResponse(BaseModel):
     similarity: float
     tables_used: list[str]
     corrections: list[Correction]
+    schema_valid: bool
+    schema_violations: list[str]
     system_prompt: str | None
     model_input: str | None
 
@@ -110,6 +114,8 @@ def generate_sql(request: QuestionRequest):
         similarity=outcome["similarity"],
         tables_used=outcome["tables_used"],
         corrections=outcome["corrections"],
+        schema_valid=outcome["schema_valid"],
+        schema_violations=outcome["schema_violations"],
         system_prompt=pipeline.SYSTEM_PROMPT if request.with_system_prompt else None,
         model_input=outcome["model_input"],
     )

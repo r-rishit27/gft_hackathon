@@ -139,6 +139,21 @@
   }
   .sql-block .copy-btn:hover { background: var(--hsbc-red-dark); }
 
+  .schema-warning {
+    margin-top: 8px;
+    background: #FFF4F4;
+    border: 1px solid var(--hsbc-red);
+    color: var(--hsbc-red-dark);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .schema-warning ul {
+    margin: 4px 0 0;
+    padding-left: 18px;
+  }
+
   .meta {
     margin-top: 8px;
     font-size: 12px;
@@ -330,6 +345,13 @@
     const tags = (data.tables_used || [])
       .map((t) => `<span class="tag">${t}</span>`)
       .join("");
+    const schemaValid = data.schema_valid !== false;
+    const warningHtml = schemaValid
+      ? ""
+      : `<div class="schema-warning">
+           &#9888; Could not fully validate this SQL against the AML schema. Review before running it.
+           <ul>${(data.schema_violations || []).map((v) => `<li>${v}</li>`).join("")}</ul>
+         </div>`;
     row.innerHTML = `
       <div class="bubble bot">
         Here's the SQL query for that:
@@ -337,6 +359,7 @@
           <button class="copy-btn" type="button">Copy</button>
           <code></code>
         </div>
+        ${warningHtml}
         <div class="meta">
           Tables used:
           <div class="tables">${tags}</div>

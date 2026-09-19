@@ -22,6 +22,12 @@ Pipeline (generate_sql_kag):
      fuzzy-match every FROM/JOIN target back onto the tables retrieval
      actually knows are real for this question, and correct near-misses
      (e.g. "RiskCase" -> "RiskCaseEvent").
+  5. Final validation gate (schema_validator.validate_and_fix): re-checks the
+     (possibly already-repaired) SQL against the full, canonical
+     aml_data_model_schema.json -- not just the KG-retrieved subset -- so a
+     correct table/column that fell outside retrieval's top_k selection can
+     still be recovered, and anything the KG-scoped repair missed gets a
+     second, independent check before the query reaches the user.
 
 Note: this T5 checkpoint is a seq2seq text2sql model fine-tuned on a fixed
 "Question: ... Schema: ..." template -- it is not an instruction-following
@@ -40,6 +46,8 @@ import sys
 
 from dotenv import load_dotenv
 from falkordb import FalkorDB
+
+import schema_validator
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(SCRIPT_DIR, ".env"))
@@ -353,7 +361,7 @@ def repair_table_names(sql, valid_tables, cutoff=0.5):
                 return f"{keyword} {t}"
         close = difflib.get_close_matches(name, valid_tables, n=1, cutoff=cutoff)
         if close:
-            corrections.append({"from": name, "to": close[0]})
+            corrections.append({"kind": "table", "stage": "kg_repair", "from": name, "to": close[0]})
             return f"{keyword} {close[0]}"
         return match.group(0)
 
@@ -378,7 +386,7 @@ def repair_column_names(sql, tables, cutoff=0.6):
                 return f"{prefix}.{c}"
         close = difflib.get_close_matches(col, valid_columns, n=1, cutoff=cutoff)
         if close:
-            corrections.append({"from": col, "to": close[0]})
+            corrections.append({"kind": "column", "stage": "kg_repair", "from": col, "to": close[0]})
             return f"{prefix}.{close[0]}"
         return match.group(0)
 
@@ -402,14 +410,17 @@ def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=
         exemplar_sql, exemplar_score, matched_question = retrieve_exemplar(question)
 
     if exemplar_sql:
+        validated_sql, schema_corrections, violations = schema_validator.validate_and_fix(exemplar_sql)
         return {
             "question": question,
-            "sql": exemplar_sql,
+            "sql": validated_sql,
             "source": "exemplar_retrieval",
             "matched_question": matched_question,
             "similarity": exemplar_score,
             "tables_used": list(tables.keys()),
-            "corrections": [],
+            "corrections": schema_corrections,
+            "schema_valid": not violations,
+            "schema_violations": violations,
             "model_input": None,
         }
 
@@ -421,17 +432,25 @@ def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=
         tokenizer, model = load_model()
     raw_sql = generate_sql(tokenizer, model, model_input)
     table_repaired_sql, table_corrections = repair_table_names(raw_sql, list(tables.keys()))
-    repaired_sql, column_corrections = repair_column_names(table_repaired_sql, tables)
-    corrections = table_corrections + column_corrections
+    kg_repaired_sql, column_corrections = repair_column_names(table_repaired_sql, tables)
+
+    # Final gate: re-check against the full canonical schema (not just the
+    # KG-retrieved subset), so a correct table/column outside retrieval's
+    # top_k can still be recovered, and anything the KG-scoped repair missed
+    # gets one more independent pass before the query reaches the user.
+    validated_sql, schema_corrections, violations = schema_validator.validate_and_fix(kg_repaired_sql)
+    corrections = table_corrections + column_corrections + schema_corrections
 
     return {
         "question": question,
-        "sql": repaired_sql,
+        "sql": validated_sql,
         "source": "model_generation",
         "matched_question": None,
         "similarity": exemplar_score,
         "tables_used": list(tables.keys()),
         "corrections": corrections,
+        "schema_valid": not violations,
+        "schema_violations": violations,
         "model_input": model_input,
     }
 
@@ -477,4 +496,8 @@ if __name__ == "__main__":
             print("Matched exemplar question:", outcome["matched_question"], f"(similarity {outcome['similarity']:.2f})")
         if outcome["corrections"]:
             print("Corrections applied:", outcome["corrections"])
+        if not outcome["schema_valid"]:
+            print("WARNING: could not fully validate against aml_data_model_schema.json:")
+            for v in outcome["schema_violations"]:
+                print("  -", v)
         print("Generated SQL:", outcome["sql"])

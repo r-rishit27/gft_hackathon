@@ -17,14 +17,118 @@ PASSWORD = os.environ["FALKORDB_PASSWORD"]
 GRAPH_NAME = os.environ.get("FALKORDB_GRAPH", "aml_data_model")
 
 
-def field_constraints(field, primary_key_names):
+def field_constraints(field, is_top_level, primary_key_names):
     mode = field.get("mode", "NULLABLE")
     return {
         "required": mode == "REQUIRED",
         "nullable": mode == "NULLABLE",
         "repeated": mode == "REPEATED",
-        "is_primary_key": field["name"] in primary_key_names,
+        # Only a top-level field can be (part of) a table's primary key --
+        # primary_key entries are always bare field names, never dotted paths.
+        "is_primary_key": is_top_level and field["name"] in primary_key_names,
     }
+
+
+def upsert_field(graph, dataset, table_name, field, parent_column_path, primary_key_names):
+    """Recursively upserts a Field node (and its nested RECORD fields, if
+    any) keyed by its globally-unique column_path -- not by {table, name},
+    since the same leaf name (e.g. "region_code") legitimately appears under
+    several different parent structs within one table (addresses,
+    nationalities, phone_numbers, ...) and would otherwise collapse into a
+    single wrong node."""
+    column_path = field.get("column_path") or (
+        f"{parent_column_path}.{field['name']}" if parent_column_path else f"{table_name}.{field['name']}"
+    )
+    is_top_level = parent_column_path is None
+    c = field_constraints(field, is_top_level, primary_key_names)
+
+    graph.query(
+        """
+        MERGE (f:Field {column_path:$column_path})
+        SET f.name=$name, f.table=$table, f.dataset=$dataset,
+            f.type=$type, f.sql_type=$sql_type, f.mode=$mode, f.description=$description,
+            f.required=$required, f.nullable=$nullable, f.repeated=$repeated,
+            f.is_primary_key=$is_primary_key, f.allowed_enum_values=$allowed_enum_values,
+            f.value_role=$value_role
+        """,
+        {
+            "column_path": column_path,
+            "table": table_name,
+            "dataset": dataset,
+            "name": field["name"],
+            "type": field.get("type", ""),
+            "sql_type": field.get("sql_type", ""),
+            "mode": field.get("mode", ""),
+            "description": field.get("description", ""),
+            "allowed_enum_values": field.get("allowed_enum_values") or [],
+            "value_role": field.get("value_role") or "",
+            **c,
+        },
+    )
+
+    if parent_column_path:
+        graph.query(
+            """
+            MATCH (p:Field {column_path:$parent})
+            MATCH (f:Field {column_path:$column_path})
+            MERGE (p)-[:HAS_SUBFIELD]->(f)
+            """,
+            {"parent": parent_column_path, "column_path": column_path},
+        )
+    else:
+        graph.query(
+            """
+            MATCH (t:Table {name:$table, dataset:$dataset})
+            MATCH (f:Field {column_path:$column_path})
+            MERGE (t)-[:HAS_FIELD]->(f)
+            """,
+            {"table": table_name, "dataset": dataset, "column_path": column_path},
+        )
+
+    for nested in field.get("fields", []) or []:
+        upsert_field(graph, dataset, table_name, nested, column_path, primary_key_names)
+
+
+def upsert_table(graph, dataset, table):
+    pk = table.get("primary_key", [])
+    graph.query(
+        """
+        MATCH (d:Dataset {name:$dataset})
+        MERGE (t:Table {name:$name, dataset:$dataset})
+        SET t.classification=$classification,
+            t.destination=$destination,
+            t.description=$description,
+            t.primary_key=$primary_key,
+            t.row_count=$row_count,
+            t.bigquery_table=$bigquery_table,
+            t.data_status=$data_status
+        MERGE (d)-[:HAS_TABLE]->(t)
+        """,
+        {
+            "dataset": dataset,
+            "name": table["name"],
+            "classification": table.get("classification", ""),
+            "destination": table.get("destination", ""),
+            "description": table.get("description", ""),
+            "primary_key": pk,
+            "row_count": table.get("row_count") or 0,
+            "bigquery_table": table.get("bigquery_table", ""),
+            "data_status": table.get("data_status", ""),
+        },
+    )
+    for field in table["fields"]:
+        upsert_field(graph, dataset, table["name"], field, None, pk)
+
+    for resource_type, metrics in table.get("metadata_metrics_by_resource_type", {}).items():
+        for metric in metrics:
+            graph.query(
+                """
+                MATCH (t:Table {name:$table, dataset:$dataset})
+                MERGE (m:MetadataMetric {name:$metric, resource_type:$resource_type})
+                MERGE (t)-[:CATALOGUES]->(m)
+                """,
+                {"table": table["name"], "dataset": dataset, "resource_type": resource_type, "metric": metric},
+            )
 
 
 def main():
@@ -40,7 +144,6 @@ def main():
     except Exception:
         pass  # empty/nonexistent graph
 
-    # --- Datasets ---
     graph.query(
         "MERGE (d:Dataset {name:$name}) SET d.description=$desc",
         {"name": "input_data_model", "desc": schema["input_data_model"]["description"]},
@@ -50,115 +153,13 @@ def main():
         {"name": "output_data_model", "desc": schema["output_data_model"]["description"]},
     )
 
-    # --- Input tables + fields ---
     for table in schema["input_data_model"]["tables"]:
-        pk = table.get("primary_key", [])
-        graph.query(
-            """
-            MATCH (d:Dataset {name:'input_data_model'})
-            MERGE (t:Table {name:$name, dataset:'input_data_model'})
-            SET t.classification=$classification,
-                t.description=$description,
-                t.primary_key=$primary_key
-            MERGE (d)-[:HAS_TABLE]->(t)
-            """,
-            {
-                "name": table["name"],
-                "classification": table.get("classification", ""),
-                "description": table.get("description", ""),
-                "primary_key": pk,
-            },
-        )
-        for field in table["fields"]:
-            c = field_constraints(field, pk)
-            graph.query(
-                """
-                MATCH (t:Table {name:$table, dataset:'input_data_model'})
-                MERGE (f:Field {name:$name, table:$table, dataset:'input_data_model'})
-                SET f.type=$type, f.mode=$mode, f.description=$description,
-                    f.required=$required, f.nullable=$nullable,
-                    f.repeated=$repeated, f.is_primary_key=$is_primary_key
-                MERGE (t)-[:HAS_FIELD]->(f)
-                """,
-                {
-                    "table": table["name"],
-                    "name": field["name"],
-                    "type": field.get("type", ""),
-                    "mode": field.get("mode", ""),
-                    "description": field.get("description", ""),
-                    **c,
-                },
-            )
-
-    # --- Output tables + fields (including nested subfields) ---
+        upsert_table(graph, "input_data_model", table)
     for table in schema["output_data_model"]["tables"]:
-        graph.query(
-            """
-            MATCH (d:Dataset {name:'output_data_model'})
-            MERGE (t:Table {name:$name, dataset:'output_data_model'})
-            SET t.destination=$destination, t.description=$description
-            MERGE (d)-[:HAS_TABLE]->(t)
-            """,
-            {
-                "name": table["name"],
-                "destination": table.get("destination", ""),
-                "description": table.get("description", ""),
-            },
-        )
-        for field in table["fields"]:
-            c = field_constraints(field, [])
-            graph.query(
-                """
-                MATCH (t:Table {name:$table, dataset:'output_data_model'})
-                MERGE (f:Field {name:$name, table:$table, dataset:'output_data_model'})
-                SET f.type=$type, f.mode=$mode, f.description=$description,
-                    f.required=$required, f.nullable=$nullable, f.repeated=$repeated
-                MERGE (t)-[:HAS_FIELD]->(f)
-                """,
-                {
-                    "table": table["name"],
-                    "name": field["name"],
-                    "type": field.get("type", ""),
-                    "mode": field.get("mode", ""),
-                    "description": field.get("description", ""),
-                    **c,
-                },
-            )
-            for sub in field.get("subfields", []):
-                sc = field_constraints(sub, [])
-                graph.query(
-                    """
-                    MATCH (f:Field {name:$parent, table:$table, dataset:'output_data_model'})
-                    MERGE (sf:Field {name:$name, table:$table, dataset:'output_data_model',
-                                     parent_field:$parent})
-                    SET sf.type=$type, sf.mode=$mode, sf.description=$description,
-                        sf.required=$required, sf.nullable=$nullable, sf.repeated=$repeated
-                    MERGE (f)-[:HAS_SUBFIELD]->(sf)
-                    """,
-                    {
-                        "table": table["name"],
-                        "parent": field["name"],
-                        "name": sub["name"],
-                        "type": sub.get("type", ""),
-                        "mode": sub.get("mode", ""),
-                        "description": sub.get("description", ""),
-                        **sc,
-                    },
-                )
+        upsert_table(graph, "output_data_model", table)
 
-        # metadata metrics catalogue (ExportedMetadata only)
-        for resource_type, metrics in table.get("metadata_metrics_by_resource_type", {}).items():
-            for metric in metrics:
-                graph.query(
-                    """
-                    MATCH (t:Table {name:$table, dataset:'output_data_model'})
-                    MERGE (m:MetadataMetric {name:$metric, resource_type:$resource_type})
-                    MERGE (t)-[:CATALOGUES]->(m)
-                    """,
-                    {"table": table["name"], "resource_type": resource_type, "metric": metric},
-                )
-
-    # --- Input-internal FK relationships (Field -> Field) ---
+    # --- Input-internal FK relationships (Field -> Field, top-level only --
+    # every entry in `relationships` references a bare field name). ---
     for rel in schema["input_data_model"].get("relationships", []):
         from_table, from_field = rel["from"].split(".", 1)
         to_table, to_field = rel["to"].split(".", 1)

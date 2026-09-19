@@ -43,6 +43,7 @@ import os
 import re
 import sys
 
+import requests
 from dotenv import load_dotenv
 from falkordb import FalkorDB
 
@@ -70,14 +71,24 @@ HF_TOKEN = os.environ.get("HF_TOKEN")
 
 MODEL_PATH = "gaussalgo/T5-LM-Large-text2sql-spider"
 
+# Generation backend. "ollama" runs Defog SQLCoder (a Llama-3-8B fine-tune for
+# Postgres/Redshift/Snowflake SQL, on par with capable generalist frontier
+# models per its model card) through a local Ollama server instead of the T5
+# fine-tune -- swapped in because the CPU-only T5 fine-tuning attempts never
+# converged (see git history), whereas SQLCoder needs no fine-tuning at all.
+# "t5" keeps the original gaussalgo checkpoint path for comparison/fallback.
+MODEL_BACKEND = os.environ.get("MODEL_BACKEND", "ollama")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mannix/defog-llama3-sqlcoder-8b")
+
 SYSTEM_PROMPT = (
-    "You are a business analyst who helps senior management analyze AML "
-    "(anti-money-laundering) data for key insights and KPI tracking. Given a "
+    "You are an AML (anti-money-laundering) analyst and business leader who "
+    "tracks key KPIs for senior management by generating SQL queries. Given a "
     "database schema retrieved from a knowledge graph and a question, generate "
     "only read-only SQL: SELECT statements only. Never generate INSERT, UPDATE, "
     "DELETE, DROP, ALTER, TRUNCATE, MERGE, or any other data- or schema-"
-    "modifying statement. Use only the tables and columns present in the "
-    "schema."
+    "modifying statement. Strictly adhere to the schema: use only the tables "
+    "and columns that are actually present in it, and never invent one."
 )
 
 # BigQuery-ish types (as stored in the KG) -> Spider-style SQL types the model
@@ -386,6 +397,49 @@ def build_schema_string(tables):
     return " [SEP] ".join(format_table(t) for t in tables.values())
 
 
+def build_ddl_schema(tables):
+    """CREATE TABLE-style schema string -- the format SQLCoder was actually
+    fine-tuned on, unlike the T5 checkpoint's flat Spider-style string above.
+    Enum values and descriptions become trailing `--` comments per column,
+    which is exactly how SQLCoder's own training schemas carry that kind of
+    hint (its model card's examples do this for categorical columns).
+
+    Deliberately bare (unquoted) identifiers, not the Postgres-style
+    double-quoted "col" SQLCoder's own DDL examples use: this schema targets
+    BigQuery, where double quotes delimit string *literals* (matching
+    schema_validator's literal-masking, which must treat them that way to
+    catch real string literals). Quoting identifiers here taught the model to
+    echo that quoting in its generated SQL, which then got masked as a fake
+    literal and flagged as a bogus column -- a real bug found by testing
+    generation end-to-end, not a style preference."""
+    statements = []
+    for t in tables.values():
+        lines = []
+        for f in t["fields"]:
+            col = f'    {f["name"]} {sql_type(f["type"])}'
+            comment_bits = []
+            enum_values = _field_enum_values(f)
+            if enum_values:
+                shown = enum_values[:MAX_INLINE_ENUM_VALUES]
+                more = len(enum_values) - len(shown)
+                suffix = f", +{more} more" if more > 0 else ""
+                comment_bits.append(f"values: {', '.join(shown)}{suffix}")
+            desc = _clean_description_for_retrieval(f["description"])
+            if desc:
+                comment_bits.append(desc)
+            if comment_bits:
+                col += f" -- {'; '.join(comment_bits)}"
+            lines.append(col)
+        for fk in t["foreign_keys"]:
+            lines.append(f'    FOREIGN KEY ({fk["column"]}) REFERENCES {fk["ref_table"]}')
+        if t["primary_key"]:
+            pk_cols = ", ".join(t["primary_key"])
+            lines.append(f"    PRIMARY KEY ({pk_cols})")
+        body = ",\n".join(lines)
+        statements.append(f'CREATE TABLE {t["name"]} (\n{body}\n);')
+    return "\n\n".join(statements)
+
+
 # ---------------------------------------------------------------------------
 # Prompt assembly + inference
 # ---------------------------------------------------------------------------
@@ -415,11 +469,119 @@ def build_model_input(question, schema_string, with_system_prompt=False, ground_
     return " ".join(["Question: ", question, "Schema:", schema_string])
 
 
+# Defog's own recommended SQLCoder prompt shape (instruction-following, unlike
+# the T5 checkpoint) -- the [QUESTION]...[/QUESTION] and [SQL] tags are part
+# of what it was fine-tuned to recognize, not decoration.
+SQLCODER_PROMPT_TEMPLATE = """### Task
+Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
+
+### Instructions
+{instructions}
+
+### Database Schema
+This query will run on a database whose schema is represented in this string:
+{ddl_schema}
+
+### Answer
+Given the database schema, here is the SQL query that [QUESTION]{question}[/QUESTION]
+[SQL]
+"""
+
+
+def build_sqlcoder_input(question, tables, ground_tables=None, feedback=None):
+    """Note: the business-analyst/read-only-SQL persona (SYSTEM_PROMPT) is
+    NOT folded in here -- it's passed separately to generate_sql_ollama as
+    Ollama's native `system` field, since SQLCoder (unlike the T5 checkpoint)
+    actually attends to a system role instead of just the prompt body."""
+    ddl_schema = build_ddl_schema(tables)
+    instructions = [
+        "- Only generate a SELECT statement -- this is a read-only analytics assistant.",
+        "- Never generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or MERGE.",
+        "- Use only the tables and columns defined in the database schema below; never invent one.",
+    ]
+    if ground_tables:
+        instructions.append(f"- Use only these exact table names: {', '.join(ground_tables)}.")
+    if feedback:
+        instructions.append(f"- Your previous attempt was invalid: {feedback}. Fix this and try again.")
+    return SQLCODER_PROMPT_TEMPLATE.format(
+        question=question, instructions="\n".join(instructions), ddl_schema=ddl_schema,
+    )
+
+
+_SQL_FENCE_RE = re.compile(r"```(?:sql)?\s*(.*?)```", re.IGNORECASE | re.DOTALL)
+
+
+def _extract_sql(text):
+    """SQLCoder is instruction-following (unlike the T5 checkpoint), so its
+    raw response can carry markdown fences, the [SQL]/[/SQL] tags it was
+    prompted with, or trailing prose after the query -- strip all of that
+    down to just the statement."""
+    text = text.strip()
+    fence = _SQL_FENCE_RE.search(text)
+    if fence:
+        text = fence.group(1).strip()
+    text = text.replace("[SQL]", "").replace("[/SQL]", "").strip()
+    if ";" in text:
+        text = text.split(";")[0] + ";"
+    return text.strip()
+
+
+def generate_sql_ollama(prompt, system=None, model=None, host=None, max_retries=1):
+    """Calls the local Ollama server's /api/generate endpoint. temperature=0
+    (and a fixed seed) per the model's usage guidance: SQLCoder should be run
+    deterministically, not sampled, for reproducible query generation.
+
+    `system` is passed through Ollama's own `system` field rather than
+    folded into the prompt body -- unlike the T5 checkpoint, SQLCoder is
+    instruction-following (Llama-3 based) and actually attends to a system
+    role, so the business-analyst/read-only-SQL persona in SYSTEM_PROMPT can
+    genuinely shape its behavior here, not just document intent."""
+    model = model or OLLAMA_MODEL
+    host = host or OLLAMA_HOST
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "options": {"temperature": 0, "seed": 0, "top_p": 1.0},
+    }
+    if system:
+        payload["system"] = system
+    resp = requests.post(
+        f"{host}/api/generate",
+        json=payload,
+        timeout=180,
+    )
+    resp.raise_for_status()
+    return _extract_sql(resp.json().get("response", ""))
+
+
 FINETUNED_MODEL_DIR = os.path.join(PROJECT_ROOT, "training", "finetuned_model")
 DEFAULT_MODEL_PATH = FINETUNED_MODEL_DIR if os.path.isdir(FINETUNED_MODEL_DIR) else MODEL_PATH
 
 
 def load_model(model_path=None):
+    if MODEL_BACKEND == "ollama":
+        # No local weights to load -- generation goes through the Ollama
+        # server's HTTP API. Verify it's actually reachable now, at startup,
+        # instead of failing opaquely on the first real request.
+        try:
+            tags = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
+            tags.raise_for_status()
+            names = {m.get("name") for m in tags.json().get("models", [])}
+            if not any(OLLAMA_MODEL in n for n in names):
+                print(
+                    f"WARNING: '{OLLAMA_MODEL}' not found in `ollama list` output "
+                    f"({names or 'no models pulled'}); pull it with "
+                    f"`ollama pull {OLLAMA_MODEL}` before generating."
+                )
+        except requests.RequestException as exc:
+            raise RuntimeError(
+                f"Ollama server not reachable at {OLLAMA_HOST}. Start it (the Ollama app, or "
+                f"`ollama serve`) and ensure `{OLLAMA_MODEL}` is pulled "
+                f"(`ollama pull {OLLAMA_MODEL}`)."
+            ) from exc
+        return None, None
+
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
     model_path = model_path or DEFAULT_MODEL_PATH
@@ -655,12 +817,18 @@ def _summarize_violations(violations, max_items=3):
 def _attempt_generation(question, tables, schema_string, with_system_prompt, ground_tables,
                          tokenizer, model, feedback=None):
     """One generate-repair-validate pass. Returns (sql, corrections, violations, model_input)."""
-    model_input = build_model_input(
-        question, schema_string, with_system_prompt=with_system_prompt,
-        ground_tables=list(tables.keys()) if ground_tables else None,
-        feedback=feedback,
-    )
-    raw_sql = generate_sql(tokenizer, model, model_input)
+    resolved_ground_tables = list(tables.keys()) if ground_tables else None
+    if MODEL_BACKEND == "ollama":
+        model_input = build_sqlcoder_input(
+            question, tables, ground_tables=resolved_ground_tables, feedback=feedback,
+        )
+        raw_sql = generate_sql_ollama(model_input, system=SYSTEM_PROMPT if with_system_prompt else None)
+    else:
+        model_input = build_model_input(
+            question, schema_string, with_system_prompt=with_system_prompt,
+            ground_tables=resolved_ground_tables, feedback=feedback,
+        )
+        raw_sql = generate_sql(tokenizer, model, model_input)
     table_repaired_sql, table_corrections = repair_table_names(raw_sql, tables)
     kg_repaired_sql, column_corrections = repair_column_names(table_repaired_sql, tables)
     validated_sql, schema_corrections, violations = schema_validator.validate_and_fix(kg_repaired_sql)

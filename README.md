@@ -5,10 +5,14 @@ get back a validated SQL query grounded in the AML data model's real schema — 
 numbers, just a query you can review and run yourself.
 
 **Pipeline:** natural-language question → retrieve relevant tables from a FalkorDB knowledge graph →
-serialize the schema → `gaussalgo/T5-LM-Large-text2sql-spider` (fine-tuned) generates SQL, or an
-exemplar-retrieval shortcut returns a verified answer directly → schema-grounded repair fixes hallucinated
-table/column names and enum-value casing → final validation against the canonical schema file before the
-query is returned.
+serialize the schema → `mannix/defog-llama3-sqlcoder-8b` (via a local Ollama server, deterministic/
+temperature 0) generates SQL, or an exemplar-retrieval shortcut returns a verified answer directly →
+schema-grounded repair fixes hallucinated table/column names and enum-value casing → final validation
+against the canonical schema file before the query is returned.
+
+The original `gaussalgo/T5-LM-Large-text2sql-spider` path (optionally fine-tuned) is still available —
+set `MODEL_BACKEND=t5` — but SQLCoder is the default: it's instruction-following and needs no fine-tuning,
+whereas the CPU-only T5 fine-tuning attempts in this repo's history never converged.
 
 See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results and known limitations.
 
@@ -45,20 +49,27 @@ See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and fill in your FalkorDB connection details and Hugging Face token:
+1. Copy `.env.example` to `.env` and fill in your FalkorDB connection details:
    ```
    FALKORDB_HOST=...
    FALKORDB_PORT=...
    FALKORDB_USERNAME=...
    FALKORDB_PASSWORD=...
    FALKORDB_GRAPH=aml_data_model
-   HF_TOKEN=...
+   MODEL_BACKEND=ollama
+   OLLAMA_HOST=http://localhost:11434
+   OLLAMA_MODEL=mannix/defog-llama3-sqlcoder-8b
    ```
 2. Install dependencies:
    ```
-   pip install fastapi "uvicorn[standard]" falkordb python-dotenv transformers torch sentencepiece accelerate sentence-transformers
+   pip install fastapi "uvicorn[standard]" falkordb python-dotenv requests sentence-transformers
    ```
-3. Load the schema into FalkorDB (one-time, or whenever `schema/aml_data_model_schema.json` changes):
+3. Install [Ollama](https://ollama.com) and pull the SQLCoder model (one-time, ~4.7 GB):
+   ```
+   ollama pull mannix/defog-llama3-sqlcoder-8b
+   ```
+   Ollama must be running (the desktop app, or `ollama serve`) whenever the pipeline generates SQL.
+4. Load the schema into FalkorDB (one-time, or whenever `schema/aml_data_model_schema.json` changes):
    ```
    python graph/build_falkordb_graph.py
    ```

@@ -32,6 +32,10 @@ SQL_KEYWORDS = {
     "offset", "month", "day", "year", "hour", "having", "union", "except", "intersect", "like",
     "between", "case", "when", "then", "else", "end", "over", "partition", "with", "all", "exists",
     "coalesce", "array_agg", "struct", "unnest", "cast", "extract",
+    "nulls", "last", "first", "if", "ifnull", "any_value", "row_number", "rank",
+    "dense_rank", "left", "right", "inner", "outer", "full", "cross", "true", "false",
+    "lower", "upper", "trim", "concat", "substr", "substring", "length", "round",
+    "floor", "ceil", "ceiling", "abs", "current_date", "current_timestamp",
 }
 
 # BigQuery treats both ' and " as string-literal delimiters (unlike ANSI SQL,
@@ -659,6 +663,15 @@ def validate_and_fix(sql, registry=None, enum_registry=None, soft_enum_registry=
         if lw in SQL_KEYWORDS or lw in defined_aliases or lw in cte_names:
             return word
         if any(t.lower() == lw for t in all_tables):
+            return word
+        if lw in alias_to_table:
+            # A real `FROM Table alias` / `JOIN Table alias` binding -- e.g.
+            # SQLCoder (unlike the old T5 checkpoint) tends to generate
+            # content-derived 3+ letter aliases like "cpr" or "rce" rather
+            # than "t1"/single letters, which the checks above don't
+            # recognize as aliases at all, so this word was previously
+            # misflagged as an unresolvable identifier despite being exactly
+            # the alias the query itself just defined two words earlier.
             return word
         if re.fullmatch(r"t\d+", lw) or re.fullmatch(r"__lit\d+__", lw):
             return word

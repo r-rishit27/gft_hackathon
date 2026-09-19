@@ -129,6 +129,22 @@ def _tokenize(text):
     return {_stem(t) for t in re.findall(r"[a-z0-9]+", text.lower())}
 
 
+_DESC_PREFIX_RE = re.compile(r"^(MANDATORY|RECOMMENDED|EXPERIMENTAL)\s*:\s*", re.IGNORECASE)
+
+
+def _clean_description_for_retrieval(description):
+    """Strips the "MANDATORY:"/"RECOMMENDED:"/"EXPERIMENTAL:" classification
+    prefix the schema's field descriptions carry, and keeps only the first
+    sentence. Retrieval scoring only needs the gist of what a field is for --
+    the full multi-sentence description (usage caveats, cross-references to
+    other fields, worked examples) mostly adds noise tokens that dilute
+    genuine question/schema overlap and can skew which tables get selected."""
+    if not description:
+        return ""
+    description = _DESC_PREFIX_RE.sub("", description)
+    return description.split(". ")[0]
+
+
 def fetch_all_tables(graph):
     """Pull every table, its fields, and outgoing FK-style edges from the KG."""
     tables = {}
@@ -154,14 +170,19 @@ def fetch_all_tables(graph):
         """
         MATCH (t:Table)-[:HAS_FIELD]->(f:Field)
         RETURN t.name AS table, f.name AS name, f.type AS type,
-               f.description AS description, f.is_primary_key AS is_pk
+               f.description AS description, f.is_primary_key AS is_pk,
+               f.allowed_enum_values AS allowed_enum_values
         """
     ).result_set
-    for table, name, ftype, description, is_pk in rows:
+    for table, name, ftype, description, is_pk, allowed_enum_values in rows:
         if table in tables:
-            tables[table]["fields"].append(
-                {"name": name, "type": ftype, "description": description or "", "is_pk": bool(is_pk)}
-            )
+            tables[table]["fields"].append({
+                "name": name,
+                "type": ftype,
+                "description": description or "",
+                "is_pk": bool(is_pk),
+                "allowed_enum_values": allowed_enum_values or [],
+            })
 
     rows = graph.query(
         """
@@ -179,20 +200,32 @@ def fetch_all_tables(graph):
     return tables
 
 
+_NAME_MATCH_WEIGHT = 2  # a table/field NAME matching the question is a much
+                         # stronger intent signal than a description word
+                         # incidentally matching, so it counts for more.
+
+
 def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
     """Lexical retrieval: score tables by overlap between question tokens and
-    table/field names + descriptions, then expand one hop across REFERENCES /
-    LINKS_TO edges so joinable tables aren't dropped. Falls back to the full
-    schema if nothing scores above zero."""
+    table/field names (weighted higher) + descriptions (cleaned of
+    classification prefixes and trimmed to their first sentence), then
+    expand one hop across REFERENCES/LINKS_TO edges so joinable tables
+    aren't dropped. Falls back to the full schema if nothing scores above
+    zero."""
     tables = fetch_all_tables(graph)
     q_tokens = _tokenize(question)
 
     scores = {}
     for name, t in tables.items():
-        haystack_tokens = _tokenize(name) | _tokenize(t["description"])
+        name_tokens = _tokenize(name)
+        desc_tokens = _tokenize(_clean_description_for_retrieval(t["description"]))
         for f in t["fields"]:
-            haystack_tokens |= _tokenize(f["name"]) | _tokenize(f["description"])
-        scores[name] = len(q_tokens & haystack_tokens)
+            name_tokens |= _tokenize(f["name"])
+            desc_tokens |= _tokenize(_clean_description_for_retrieval(f["description"]))
+        desc_tokens -= name_tokens  # don't double-count a word that's in both
+        scores[name] = (
+            _NAME_MATCH_WEIGHT * len(q_tokens & name_tokens) + len(q_tokens & desc_tokens)
+        )
 
     # Tie-break alphabetically: FalkorDB doesn't guarantee row order without
     # an ORDER BY, so without this, which tables land in the top_k on a score
@@ -230,14 +263,31 @@ def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
 extract_enum_hint = schema_validator.extract_enum_hint
 
 
+MAX_INLINE_ENUM_VALUES = 6  # keeps schema-string length in the range the
+                             # model was fine-tuned on; some fields (e.g.
+                             # education_level_code) now carry 11 authoritative
+                             # values, and showing all of them for every such
+                             # field would bloat the input well past what was
+                             # ever seen in training.
+
+
 def format_table(table):
     parts = [table["name"]]
     col_parts = []
     for f in table["fields"]:
         col_str = f'"{f["name"]}" {sql_type(f["type"])}'
-        enum_values = extract_enum_hint(f.get("description"))
+        # Prefer the schema's explicit allowed_enum_values (authoritative,
+        # graph-provided) over regex-guessing from the description; only
+        # string values matter here (a BOOL field's allowed_enum_values is
+        # [false, true], not a literal hint worth showing).
+        enum_values = [v for v in f.get("allowed_enum_values") or [] if isinstance(v, str)]
+        if not enum_values:
+            enum_values = extract_enum_hint(f.get("description"))
         if enum_values:
-            col_str += f' (values: {", ".join(enum_values)})'
+            shown = enum_values[:MAX_INLINE_ENUM_VALUES]
+            more = len(enum_values) - len(shown)
+            suffix = f", +{more} more" if more > 0 else ""
+            col_str += f' (values: {", ".join(shown)}{suffix})'
         col_parts.append(col_str)
     parts.append(" , ".join(col_parts))
     for fk in table["foreign_keys"]:

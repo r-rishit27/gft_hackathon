@@ -148,6 +148,19 @@ def _unmask_literals(sql, literals):
     return sql
 
 
+def _fuzzy_match_ci(word, candidates, cutoff):
+    """Case-insensitive fuzzy match: difflib.SequenceMatcher penalizes a
+    single case mismatch surprisingly heavily (e.g. "risk_Type" vs "type"
+    scores 0.46, well under a 0.6 cutoff, while "risk_type" vs "type" scores
+    0.62 and passes) -- comparing lowercased strings avoids fixing an
+    identifier only when its casing happens to line up by chance. Returns
+    the candidate in its original casing, or None."""
+    candidates = list(candidates)
+    lower_to_original = {c.lower(): c for c in candidates}
+    close = difflib.get_close_matches(word.lower(), list(lower_to_original.keys()), n=1, cutoff=cutoff)
+    return lower_to_original[close[0]] if close else None
+
+
 def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, column_cutoff=0.6):
     """Validates + repairs `sql` against the canonical schema registry.
 
@@ -182,10 +195,10 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
         for t in all_tables:
             if t.lower() == name.lower():
                 return f"{keyword} {t}"
-        close = difflib.get_close_matches(name, all_tables, n=1, cutoff=table_cutoff)
+        close = _fuzzy_match_ci(name, all_tables, table_cutoff)
         if close:
-            corrections.append({"kind": "table", "from": name, "to": close[0]})
-            return f"{keyword} {close[0]}"
+            corrections.append({"kind": "table", "from": name, "to": close})
+            return f"{keyword} {close}"
         violations.append(f"table '{name}' not found in schema")
         return match.group(0)
 
@@ -216,17 +229,17 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
         for c in candidate_fields:
             if c.lower() == col.lower():
                 return f"{prefix}.{c}"
-        close = difflib.get_close_matches(col, list(candidate_fields), n=1, cutoff=column_cutoff)
+        close = _fuzzy_match_ci(col, candidate_fields, column_cutoff)
         if close:
-            corrections.append({"kind": "column", "from": col, "to": close[0]})
-            return f"{prefix}.{close[0]}"
+            corrections.append({"kind": "column", "from": col, "to": close})
+            return f"{prefix}.{close}"
         # Fall back to searching every field in the whole schema, in case the
         # alias->table resolution itself was wrong.
         all_fields = {f for fs in registry.values() for f in fs}
-        close = difflib.get_close_matches(col, list(all_fields), n=1, cutoff=column_cutoff)
+        close = _fuzzy_match_ci(col, all_fields, column_cutoff)
         if close:
-            corrections.append({"kind": "column", "from": col, "to": close[0]})
-            return f"{prefix}.{close[0]}"
+            corrections.append({"kind": "column", "from": col, "to": close})
+            return f"{prefix}.{close}"
         violations.append(f"column '{prefix}.{col}' not found in schema")
         return match.group(0)
 
@@ -263,10 +276,10 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
         preceding = masked_sql[:start].rstrip()
         if preceding.lower().endswith(" as") or preceding.lower() == "as":
             return word
-        close = difflib.get_close_matches(word, list(fields_in_query), n=1, cutoff=column_cutoff)
-        if close and close[0].lower() != lw:
-            corrections.append({"kind": "column", "from": word, "to": close[0]})
-            return close[0]
+        close = _fuzzy_match_ci(word, fields_in_query, column_cutoff)
+        if close and close.lower() != lw:
+            corrections.append({"kind": "column", "from": word, "to": close})
+            return close
         if len(word) >= 4:
             violations.append(f"identifier '{word}' does not match any table, alias, or column in scope")
         return word  # leave ambiguous/unresolvable bare words in place rather than guess

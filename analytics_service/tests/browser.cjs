@@ -37,6 +37,8 @@ const path = require('node:path');
       await page.getByRole('button', {name: 'Run query', exact: true}).click();
       await page.waitForFunction(() => document.getElementById('message').textContent.includes('supported KPI'));
       assert(await page.locator('#results').isHidden());
+      assert.equal(await page.locator('#rows').textContent(), '');
+      assert.equal(await page.locator('#sql').textContent(), '');
       await page.getByRole('button', {name: 'Disconnect', exact: true}).click();
       assert(await page.locator('#run').isDisabled());
       assert.equal(await page.evaluate(() => localStorage.length + sessionStorage.length), 0);

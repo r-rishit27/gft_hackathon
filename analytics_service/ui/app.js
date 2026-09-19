@@ -24,29 +24,36 @@ async function api(path, body) {
 function clearResults() {
   charts.forEach((chart) => chart.destroy());
   charts = [];
+  for (const id of ["kpis", "charts", "rows", "columns", "sql", "provenance", "warnings", "insights"]) {
+    $(id).replaceChildren();
+  }
   $("results").hidden = true;
   $("empty").hidden = false;
 }
 $("access-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   generation += 1;
+  const thisGeneration = generation;
   clearResults();
   token = $("token").value;
   $("message").textContent = "";
   try {
     const response = await api("/metrics");
+    if (thisGeneration !== generation) return;
     metrics = response.questions;
     $("metric").replaceChildren(...metrics.map((metric) => {
       const option = element("option", title(metric.id)); option.value = metric.id; return option;
     }));
     $("question").value = metrics[0].question;
     for (const id of ["metric", "question", "run"]) $(id).disabled = false;
+    $("run").textContent = "Run query";
     $("scope").textContent = response.scope.join(" / ");
     $("status").textContent = response.mode === "offline_fixture" ? "Offline fixture" : "Authenticated";
     $("empty-status").textContent = "Ready";
     $("token").value = "";
     $("disconnect").hidden = false;
   } catch (error) {
+    if (thisGeneration !== generation) return;
     disconnect();
     $("message").textContent = error.message;
   }
@@ -83,8 +90,10 @@ $("query-form").addEventListener("submit", async (event) => {
     $("message").textContent = error.message;
     $("empty-status").textContent = "Query not completed";
   } finally {
-    $("run").textContent = "Run query";
-    $("run").disabled = !token;
+    if (thisGeneration === generation) {
+      $("run").textContent = "Run query";
+      $("run").disabled = !token;
+    }
   }
 });
 function render(result) {

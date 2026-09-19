@@ -47,8 +47,15 @@ _ALIAS_DEF_RE = re.compile(
 _QUALIFIED_COL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\.\s*([A-Za-z_][A-Za-z0-9_]*)\b")
 _BARE_IDENT_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
 _LITERAL_COMPARISON_RE = re.compile(
-    r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s*=\s*('[^']*'|\"[^\"]*\")"
+    r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s*(=|!=|<>)\s*('[^']*'|\"[^\"]*\")"
 )
+# `col IN ('A', 'B')` / `col NOT IN (...)` -- deliberately excludes anything
+# containing a nested SELECT (an IN-subquery has no literal list to correct).
+_IN_LIST_RE = re.compile(
+    r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s+(NOT\s+)?IN\s*\(([^()]*)\)",
+    re.IGNORECASE,
+)
+_QUOTED_LITERAL_RE = re.compile(r"'[^']*'|\"[^\"]*\"")
 
 
 def build_enum_registry(schema=None):
@@ -696,11 +703,11 @@ def validate_and_fix(sql, registry=None, enum_registry=None, soft_enum_registry=
     # from its schema description) -- never invents a value that isn't a
     # documented enum member, and skips ambiguous bare-column references
     # that match a same-named field in more than one table in the query.
-    def fix_literal(match):
-        col_ref, literal = match.group(1), match.group(2)
-        quote = literal[0]
-        value = literal[1:-1]
-
+    def resolve_col_ref(col_ref):
+        """(table, canonical_field) for a bare or qualified column reference
+        actually in scope for this query, or (None, None) if it can't be
+        resolved unambiguously -- shared by every literal-value check below
+        so `=`, `!=`/`<>`, and `IN (...)` all ground against the same field."""
         if "." in col_ref:
             alias, field = col_ref.split(".", 1)
             table = alias_to_table.get(alias.lower())
@@ -710,12 +717,17 @@ def validate_and_fix(sql, registry=None, enum_registry=None, soft_enum_registry=
             table = candidates[0] if len(candidates) == 1 else None
 
         if not table:
-            return match.group(0)
-
+            return None, None
         canonical_field = next((f for f in registry.get(table, set()) if f.lower() == field.lower()), None)
         if canonical_field is None:
-            return match.group(0)
+            return None, None
+        return table, canonical_field
 
+    def resolve_value(table, canonical_field, value):
+        """(corrected_value, violation_or_None). corrected_value == value
+        means no change was made (either already correct, or -- for soft
+        enums / unresolvable cases -- deliberately left alone rather than
+        guessed). Appends to `corrections` in place when it fixes something."""
         enum_values = enum_registry.get((table, canonical_field))
         if not enum_values:
             # No formal enum -- try a soft one mined from observed_values
@@ -725,25 +737,25 @@ def validate_and_fix(sql, registry=None, enum_registry=None, soft_enum_registry=
             # happened to include, unlike a true documented enum.
             soft_values = soft_enum_registry.get((table, canonical_field))
             if not soft_values:
-                return match.group(0)
+                return value, None
             exact = next((v for v in soft_values if v.lower() == value.lower()), None)
             if exact:
                 if exact != value:
                     corrections.append({"kind": "literal_value", "stage": "soft", "from": value, "to": exact})
-                    return f"{col_ref} = {quote}{exact}{quote}"
-                return match.group(0)
+                    return exact, None
+                return value, None
             close = _fuzzy_match_ci(value, soft_values, SOFT_ENUM_FUZZY_CUTOFF)
             if close:
                 corrections.append({"kind": "literal_value", "stage": "soft_fuzzy", "from": value, "to": close})
-                return f"{col_ref} = {quote}{close}{quote}"
-            return match.group(0)
+                return close, None
+            return value, None
 
         canonical_value = next((v for v in enum_values if v.lower() == value.lower()), None)
         if canonical_value:
             if canonical_value != value:
                 corrections.append({"kind": "literal_value", "from": value, "to": canonical_value})
-                return f"{col_ref} = {quote}{canonical_value}{quote}"
-            return match.group(0)  # already exactly correct
+                return canonical_value, None
+            return value, None  # already exactly correct
 
         # The value doesn't case-insensitively match any real enum member at
         # all -- previously this was silently accepted as "just a string",
@@ -759,13 +771,58 @@ def validate_and_fix(sql, registry=None, enum_registry=None, soft_enum_registry=
         sem = _semantic_best_match(value, [(v, v) for v in enum_values], LITERAL_SEMANTIC_CUTOFF)
         if sem:
             corrections.append({"kind": "literal_value", "stage": "semantic", "from": value, "to": sem})
-            return f"{col_ref} = {quote}{sem}{quote}"
-        violations.append(
-            f"literal {quote}{value}{quote} is not a valid value for {table}.{canonical_field}; "
+            return sem, None
+        return value, (
+            f"literal '{value}' is not a valid value for {table}.{canonical_field}; "
             f"expected one of: {', '.join(enum_values)}"
         )
-        return match.group(0)
 
+    def fix_literal(match):
+        col_ref, op, literal = match.group(1), match.group(2), match.group(3)
+        quote = literal[0]
+        value = literal[1:-1]
+
+        table, canonical_field = resolve_col_ref(col_ref)
+        if not table:
+            return match.group(0)
+
+        new_value, violation = resolve_value(table, canonical_field, value)
+        if violation:
+            violations.append(violation)
+        if new_value == value:
+            return match.group(0)
+        return f"{col_ref} {op} {quote}{new_value}{quote}"
+
+    def fix_in_list(match):
+        col_ref, neg, inner = match.group(1), match.group(2), match.group(3)
+        # An IN-subquery (`IN (SELECT ...)`) has no literal list to correct.
+        if re.search(r"\bSELECT\b", inner, re.IGNORECASE):
+            return match.group(0)
+        literals = _QUOTED_LITERAL_RE.findall(inner)
+        if not literals:
+            return match.group(0)  # e.g. a numeric IN-list, nothing to ground
+
+        table, canonical_field = resolve_col_ref(col_ref)
+        if not table:
+            return match.group(0)
+
+        changed = False
+        new_literals = []
+        for lit in literals:
+            quote = lit[0]
+            value = lit[1:-1]
+            new_value, violation = resolve_value(table, canonical_field, value)
+            if violation:
+                violations.append(violation)
+            if new_value != value:
+                changed = True
+            new_literals.append(f"{quote}{new_value}{quote}")
+
+        if not changed:
+            return match.group(0)
+        return f"{col_ref} {neg or ''}IN ({', '.join(new_literals)})"
+
+    fixed_sql = _IN_LIST_RE.sub(fix_in_list, fixed_sql)
     fixed_sql = _LITERAL_COMPARISON_RE.sub(fix_literal, fixed_sql)
 
     # Final structural sanity pass -- catches gross malformation (unbalanced

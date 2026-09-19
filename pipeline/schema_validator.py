@@ -76,15 +76,35 @@ def extract_enum_hint(description):
 
 def build_enum_registry(schema=None):
     """Returns {(table_name, field_name): [canonical enum values]} for every
-    field whose description enumerates literal values."""
+    top-level field with known enum values. Prefers the schema's own explicit
+    `allowed_enum_values` (authoritative, machine-generated from observed
+    data) and falls back to regex-parsing the description for older schema
+    snapshots that don't carry it.
+
+    Deliberately top-level only: literal-casing correction only ever needs
+    to resolve a bare column name actually referenced in generated SQL
+    (e.g. `type = 'Company'`), and several nested struct fields share a leaf
+    name with a different enum set within the same table (e.g. Party.type
+    is COMPANY/CONSUMER, but Party.phone_numbers.type and
+    Party.email_addresses.type are PERSONAL/CORPORATE) -- keying by
+    (table_name, leaf_name) for those would silently overwrite one with the
+    other. Nested fields aren't addressable as bare SQL identifiers anyway
+    without an explicit UNNEST, so this is the correct scope, not a
+    shortcut."""
     schema = schema or load_schema()
     enum_registry = {}
     for section in ("input_data_model", "output_data_model"):
         for table in schema[section]["tables"]:
             for f in table["fields"]:
-                values = extract_enum_hint(f.get("description"))
+                # allowed_enum_values can hold non-strings (e.g. BOOL fields
+                # carry [false, true] as Python bools) -- only string enums
+                # are relevant here since we're matching against quoted SQL
+                # literals, and a bool would crash the later .lower() call.
+                values = [v for v in (f.get("allowed_enum_values") or []) if isinstance(v, str)]
+                if not values:
+                    values = extract_enum_hint(f.get("description"))
                 if values:
-                    enum_registry[(table["name"], f["name"])] = values
+                    enum_registry[(table["name"], f["name"])] = list(values)
     return enum_registry
 
 
@@ -103,21 +123,31 @@ def load_schema():
         return json.load(f)
 
 
+def _collect_field_names(fields, into):
+    """Recursively flattens every field name -- at any nesting depth -- into
+    `into`. RECORD-typed fields nest further fields under the key "fields"
+    (arbitrary depth: e.g. Party.assets_value_range.start_amount.currency_code
+    is three levels deep), so generated SQL may reference a deeply nested
+    leaf name unqualified after UNNEST, same as the old flat "subfields"
+    case this generalizes."""
+    for f in fields:
+        into.add(f["name"])
+        nested = f.get("fields")
+        if nested:
+            _collect_field_names(nested, into)
+
+
 def build_registry(schema=None):
     """Returns {table_name: set(field_names)} across both input and output
-    data models, with output STRUCT subfields (e.g. Explainability's
-    attributions.feature/.attribution) flattened in as valid column names
-    too, since generated SQL may reference them unqualified after UNNEST."""
+    data models, with every nested RECORD field flattened in as a valid
+    column name too (see _collect_field_names)."""
     schema = schema or load_schema()
     registry = {}
 
     for section in ("input_data_model", "output_data_model"):
         for table in schema[section]["tables"]:
             fields = set()
-            for f in table["fields"]:
-                fields.add(f["name"])
-                for sub in f.get("subfields", []):
-                    fields.add(sub["name"])
+            _collect_field_names(table["fields"], fields)
             registry[table["name"]] = fields
 
     return registry

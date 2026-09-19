@@ -56,14 +56,19 @@
   {
     "question": "List the party id and account id for every account-party link",
     "gold_sql": "SELECT party_id, account_id FROM AccountPartyLink",
-    "pred_sql": "SELECT T2.party_id, T1.account_id FROM AccountPartyLink AS T1 JOIN Party AS T2 ON T1.party_id = T2.party_id",
+    "pred_sql": "SELECT T2.party_id, T1.account_id FROM AccountPartyLink AS T1 JOIN Party AS T2 ON T1.party_id = T2.addresses",
     "source": "model_generation",
     "corrections": [
       {
         "kind": "column",
         "stage": "kg_repair",
-        "from": "party_ide",
-        "to": "party_id"
+        "from": "parties_ip_address",
+        "to": "ip_address"
+      },
+      {
+        "kind": "column",
+        "from": "ip_address",
+        "to": "addresses"
       }
     ],
     "schema_valid": true,

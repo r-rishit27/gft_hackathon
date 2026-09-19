@@ -1,0 +1,50 @@
+[
+  {
+    "question": "How many transactions were made by card?",
+    "sql": "SELECT COUNT(*) FROM Transaction WHERE type = 'CARD'"
+  },
+  {
+    "question": "List the account id and party id for every primary holder link",
+    "sql": "SELECT account_id, party_id FROM AccountPartyLink WHERE role = 'PRIMARY_HOLDER'"
+  },
+  {
+    "question": "How many interaction events were a password change?",
+    "sql": "SELECT COUNT(*) FROM InteractionEvent WHERE type = 'PASSWORD_CHANGE'"
+  },
+  {
+    "question": "What is the minimum and maximum risk score for each risk period?",
+    "sql": "SELECT risk_period_end_time, MIN(risk_score) AS min_score, MAX(risk_score) AS max_score FROM RiskScores GROUP BY risk_period_end_time"
+  },
+  {
+    "question": "List the feature name and attribution value for each explainability record",
+    "sql": "SELECT party_id, attr.feature, attr.attribution FROM Explainability, UNNEST(attributions) AS attr"
+  },
+  {
+    "question": "How many commercial parties are registered as large?",
+    "sql": "SELECT COUNT(*) FROM CommercialPartiesRegistration WHERE party_size = 'LARGE'"
+  },
+  {
+    "question": "How many retail parties are registered in total?",
+    "sql": "SELECT COUNT(*) FROM RetailPartiesRegistration"
+  },
+  {
+    "question": "Show the resource id and value of the importance metric for each model",
+    "sql": "SELECT resource_id, value FROM ExportedMetadata WHERE resource_type = 'Model' AND name = 'Importance'"
+  },
+  {
+    "question": "How many parties are companies?",
+    "sql": "SELECT COUNT(*) FROM Party WHERE type = 'COMPANY'"
+  },
+  {
+    "question": "What is the earliest join date among all parties?",
+    "sql": "SELECT MIN(join_date) FROM Party"
+  },
+  {
+    "question": "How many risk case events are an AML exit?",
+    "sql": "SELECT COUNT(*) FROM RiskCaseEvent WHERE type = 'AML_EXIT'"
+  },
+  {
+    "question": "List the party id and supplementary data payload for every party supplementary data record",
+    "sql": "SELECT party_id, supplementary_data_payload FROM PartySupplementaryData"
+  }
+]

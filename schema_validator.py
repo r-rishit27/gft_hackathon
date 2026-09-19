@@ -33,7 +33,11 @@ SQL_KEYWORDS = {
     "coalesce", "array_agg", "struct", "unnest", "cast", "extract",
 }
 
-_STRING_LITERAL_RE = re.compile(r"'[^']*'")
+# BigQuery treats both ' and " as string-literal delimiters (unlike ANSI SQL,
+# where " denotes a quoted identifier) -- the model emits both styles, and
+# missing either one here leaks literal values (e.g. "CARD") into the bare-
+# identifier scan below, which then wrongly flags them as schema violations.
+_STRING_LITERAL_RE = re.compile(r"'[^']*'|\"[^\"]*\"")
 _TABLE_REF_RE = re.compile(r"\b(FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
 _ALIAS_DEF_RE = re.compile(
     r"\b(?:FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)\s+(?:AS\s+)?([A-Za-z_][A-Za-z0-9_]*)\b",

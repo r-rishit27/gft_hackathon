@@ -268,6 +268,14 @@ def _describe_field(name, preferred_tables, field_descs):
 TABLE_SEMANTIC_CUTOFF = 0.30
 COLUMN_SEMANTIC_CUTOFF = 0.35
 
+# LITERAL_SEMANTIC_CUTOFF=0.5: comparing two short, comparable-length strings
+# (a value against an enum member) doesn't suffer the length-asymmetry
+# problem table/column matching does, so separation is clean and wide.
+# Genuine matches ("Primary"->PRIMARY_HOLDER, "login"->LOGIN) scored 0.70+;
+# unrelated values ("Yes", "active") scored under 0.28 against every member
+# of an unrelated enum.
+LITERAL_SEMANTIC_CUTOFF = 0.5
+
 
 def _semantic_best_match(word, candidates_with_desc, cutoff):
     """candidates_with_desc: [(name, description), ...]. Returns the best-
@@ -377,6 +385,52 @@ def _fuzzy_match_ci(word, candidates, cutoff):
     effective_cutoff = max(cutoff, 0.75) if len(word) < 5 else cutoff
     close = difflib.get_close_matches(word.lower(), list(lower_to_original.keys()), n=1, cutoff=effective_cutoff)
     return lower_to_original[close[0]] if close else None
+
+
+def check_sql_syntax(sql):
+    """Coarse structural sanity checks -- not a real SQL parser, just the
+    cheap, unambiguous checks that catch gross malformation no amount of
+    schema grounding can see (e.g. "SELECT count(*) FROM CommercialPartiesRegistration
+    WHERE party_id NOT IN ( SELECTION DISTINCT party_id FROM Party" -- missing
+    a closing paren). Every one of these checks only fires on something that
+    is *always* wrong in valid SQL, so it can't produce a false positive on
+    a legitimately unusual but correct query."""
+    issues = []
+
+    depth = 0
+    in_single, in_double = False, False
+    i = 0
+    while i < len(sql):
+        c = sql[i]
+        if c == "'" and not in_double:
+            in_single = not in_single
+        elif c == '"' and not in_single:
+            in_double = not in_double
+        elif c == "(" and not in_single and not in_double:
+            depth += 1
+        elif c == ")" and not in_single and not in_double:
+            depth -= 1
+            if depth < 0:
+                issues.append("unmatched closing parenthesis")
+                depth = 0  # keep scanning for a legitimate count elsewhere
+        i += 1
+    if depth > 0:
+        issues.append(f"{depth} unclosed parenthesis/parentheses")
+    if in_single:
+        issues.append("unterminated single-quoted string literal")
+    if in_double:
+        issues.append("unterminated double-quoted string literal")
+
+    if not re.search(r"\bSELECT\b", sql, re.IGNORECASE):
+        issues.append("missing SELECT clause")
+    if not re.search(r"\bFROM\b", sql, re.IGNORECASE):
+        issues.append("missing FROM clause")
+    if re.search(r",\s*,", sql):
+        issues.append("consecutive commas (likely a missing list item)")
+    if re.search(r",\s*(FROM|WHERE|GROUP BY|ORDER BY|HAVING)\b", sql, re.IGNORECASE):
+        issues.append("trailing comma before a clause keyword")
+
+    return issues
 
 
 def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, column_cutoff=0.6):
@@ -623,11 +677,38 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
             return match.group(0)
 
         canonical_value = next((v for v in enum_values if v.lower() == value.lower()), None)
-        if canonical_value and canonical_value != value:
-            corrections.append({"kind": "literal_value", "from": value, "to": canonical_value})
-            return f"{col_ref} = {quote}{canonical_value}{quote}"
+        if canonical_value:
+            if canonical_value != value:
+                corrections.append({"kind": "literal_value", "from": value, "to": canonical_value})
+                return f"{col_ref} = {quote}{canonical_value}{quote}"
+            return match.group(0)  # already exactly correct
+
+        # The value doesn't case-insensitively match any real enum member at
+        # all -- previously this was silently accepted as "just a string",
+        # even for a field with a fixed, known set of valid values (e.g.
+        # `role = 'Primary'` when the only real values are PRIMARY_HOLDER/
+        # SECONDARY_HOLDER/SUPPLEMENTARY_HOLDER). Try a semantic match
+        # against the enum's own members first (calibrated: genuine matches
+        # like "Primary"->PRIMARY_HOLDER score 0.70+, unrelated values like
+        # "Yes" or "active" score under 0.28 against any real member, so 0.5
+        # separates them with a comfortable margin); if nothing clears the
+        # bar, flag it rather than ship a value that will never match a real
+        # row.
+        sem = _semantic_best_match(value, [(v, v) for v in enum_values], LITERAL_SEMANTIC_CUTOFF)
+        if sem:
+            corrections.append({"kind": "literal_value", "stage": "semantic", "from": value, "to": sem})
+            return f"{col_ref} = {quote}{sem}{quote}"
+        violations.append(
+            f"literal {quote}{value}{quote} is not a valid value for {table}.{canonical_field}; "
+            f"expected one of: {', '.join(enum_values)}"
+        )
         return match.group(0)
 
     fixed_sql = _LITERAL_COMPARISON_RE.sub(fix_literal, fixed_sql)
+
+    # Final structural sanity pass -- catches gross malformation (unbalanced
+    # parens/quotes, missing SELECT/FROM, stray commas) that identifier-level
+    # repair has no way to see, since none of it is schema-grounding.
+    violations.extend(f"syntax: {issue}" for issue in check_sql_syntax(fixed_sql))
 
     return fixed_sql, corrections, violations

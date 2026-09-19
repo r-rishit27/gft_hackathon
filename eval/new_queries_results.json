@@ -149,7 +149,8 @@
     "corrections": [],
     "schema_valid": false,
     "schema_violations": [
-      "identifier 'company' does not match any table, alias, or column in scope"
+      "identifier 'company' does not match any table, alias, or column in scope",
+      "literal \"NOT\" is not a valid value for Party.is_entity_deleted; expected one of: TRUE"
     ],
     "gold_tables": [
       "CommercialPartiesRegistration"

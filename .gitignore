@@ -1,0 +1,19 @@
+# secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+
+# logs
+*.log
+
+# model artifacts (large binaries, not suitable for git)
+finetune_checkpoints/
+finetuned_model/
+finetuned_model_test/
+*.safetensors
+*.bin
+
+# editor/tooling
+.claude/

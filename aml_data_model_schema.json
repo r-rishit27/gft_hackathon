@@ -1,0 +1,203 @@
+{
+  "input_data_model": {
+    "description": "Tables that a bank must (or may) provide to AML AI as input for training/prediction.",
+    "tables": [
+      {
+        "name": "Party",
+        "classification": "MANDATORY",
+        "description": "Covers retail or commercial banking customers; enables AML AI to understand details of each party and how they changed over time.",
+        "primary_key": ["party_id", "validity_start_time"],
+        "fields": [
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique customer identifier (pseudo-ID or internal ID)"},
+          {"name": "validity_start_time", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "When information reflected entity state"},
+          {"name": "is_entity_deleted", "type": "BOOL", "mode": "NULLABLE", "description": "Indicates deletion from system"},
+          {"name": "source_system", "type": "STRING", "mode": "NULLABLE", "description": "System data origin for lineage tracking"},
+          {"name": "type", "type": "STRING", "mode": "REQUIRED", "description": "COMPANY or CONSUMER"},
+          {"name": "name", "type": "STRING", "mode": "NULLABLE", "description": "Party name"},
+          {"name": "addresses", "type": "STRUCT", "mode": "REPEATED", "description": "Address details (street, building, postal code, town, subregion, region_code)"},
+          {"name": "birth_date", "type": "DATE", "mode": "NULLABLE", "description": "Date of birth for natural persons"},
+          {"name": "establishment_date", "type": "DATE", "mode": "NULLABLE", "description": "Date established for companies"},
+          {"name": "occupation", "type": "STRING", "mode": "NULLABLE", "description": "Most recent occupation (consumers only)"},
+          {"name": "gender", "type": "STRING", "mode": "NULLABLE", "description": "Gender for fairness evaluation"},
+          {"name": "nationalities", "type": "STRUCT", "mode": "REPEATED", "description": "Nationality with region_code (mandatory)"},
+          {"name": "residencies", "type": "STRUCT", "mode": "REPEATED", "description": "Tax residencies with region_code (mandatory)"},
+          {"name": "exit_date", "type": "DATE", "mode": "NULLABLE", "description": "When party ceased being customer"},
+          {"name": "join_date", "type": "DATE", "mode": "NULLABLE", "description": "When party became customer"},
+          {"name": "assets_value_range", "type": "STRUCT", "mode": "NULLABLE", "description": "Approximate asset holdings with start/end amounts"},
+          {"name": "civil_status_code", "type": "STRUCT", "mode": "NULLABLE", "description": "Civil status per ISO 20022"},
+          {"name": "phone_numbers", "type": "STRUCT", "mode": "REPEATED", "description": "Contact numbers (type, phone/obfuscated_phone, region_code)"},
+          {"name": "email_addresses", "type": "STRUCT", "mode": "REPEATED", "description": "Email contacts (type, email/obfuscated_email, region_code)"},
+          {"name": "education_level_code", "type": "STRING", "mode": "NULLABLE", "description": "Educational attainment per ISCED-11"}
+        ]
+      },
+      {
+        "name": "AccountPartyLink",
+        "classification": "MANDATORY",
+        "description": "Represents how parties are related to accounts, including all account holders (not just primary) and joint holdings.",
+        "primary_key": ["account_id", "party_id", "validity_start_time"],
+        "fields": [
+          {"name": "account_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique account identifier"},
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Reference to Party table", "references": "Party.party_id"},
+          {"name": "validity_start_time", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "When link became valid"},
+          {"name": "is_entity_deleted", "type": "BOOL", "mode": "NULLABLE", "description": "Indicates link no longer exists"},
+          {"name": "role", "type": "STRING", "mode": "REQUIRED", "description": "PRIMARY_HOLDER, SECONDARY_HOLDER, or SUPPLEMENTARY_HOLDER"},
+          {"name": "source_system", "type": "STRING", "mode": "NULLABLE", "description": "System data origin"}
+        ]
+      },
+      {
+        "name": "Transaction",
+        "classification": "MANDATORY",
+        "description": "Represents a movement of funds from or to an account; helps models understand the flow of money.",
+        "primary_key": ["transaction_id", "validity_start_time"],
+        "fields": [
+          {"name": "transaction_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique transaction ID from account perspective"},
+          {"name": "validity_start_time", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "When transaction state was correct"},
+          {"name": "is_entity_deleted", "type": "BOOL", "mode": "NULLABLE", "description": "Indicates transaction removed from records"},
+          {"name": "source_system", "type": "STRING", "mode": "NULLABLE", "description": "System data origin"},
+          {"name": "type", "type": "STRING", "mode": "REQUIRED", "description": "CARD, CASH, CHECK, WIRE, OTHER, or CRYPTO"},
+          {"name": "direction", "type": "STRING", "mode": "REQUIRED", "description": "DEBIT or CREDIT from account perspective"},
+          {"name": "account_id", "type": "STRING", "mode": "REQUIRED", "description": "AccountPartyLink table reference", "references": "AccountPartyLink.account_id"},
+          {"name": "counterparty_account", "type": "STRUCT", "mode": "NULLABLE", "description": "Counterparty details (account_id, counterparty_name, addresses, region_code)", "references": "AccountPartyLink.account_id (optional, may be external institution)"},
+          {"name": "book_time", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "When transaction posted to account"},
+          {"name": "normalized_booked_amount", "type": "STRUCT", "mode": "REQUIRED", "description": "Amount with currency_code, units, nanos"},
+          {"name": "ip_address", "type": "STRUCT", "mode": "NULLABLE", "description": "Transaction IP (type, ip/obfuscated_ip, region_code, is_vpn)"}
+        ]
+      },
+      {
+        "name": "InteractionEvent",
+        "classification": "EXPERIMENTAL",
+        "description": "A subset of AML-relevant interactions between the party and the bank, e.g. a login event to online banking.",
+        "primary_key": ["interaction_event_id"],
+        "fields": [
+          {"name": "interaction_event_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique event identifier"},
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Party table reference", "references": "Party.party_id"},
+          {"name": "account_id", "type": "STRING", "mode": "NULLABLE", "description": "Associated account if applicable", "references": "AccountPartyLink.account_id (optional)"},
+          {"name": "type", "type": "STRING", "mode": "REQUIRED", "description": "LOGIN, PAYMENT_METHOD_ADDED, KYC_CHANGE, PASSWORD_CHANGE, or OTHER"},
+          {"name": "event_time", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "When event occurred"},
+          {"name": "ip_address", "type": "STRUCT", "mode": "NULLABLE", "description": "Device IP details (type, ip/obfuscated_ip, region_code, is_vpn)"}
+        ]
+      },
+      {
+        "name": "RiskCaseEvent",
+        "classification": "MANDATORY",
+        "description": "Tracks the progress of a risk case from the initial alert to the case outcome; supports creation of training labels for training, tuning, and backtesting of models.",
+        "primary_key": ["risk_case_event_id"],
+        "fields": [
+          {"name": "risk_case_event_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique event identifier"},
+          {"name": "event_time", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "When event occurs"},
+          {"name": "type", "type": "STRING", "mode": "REQUIRED", "description": "AML_SUSPICIOUS_ACTIVITY_START, AML_SUSPICIOUS_ACTIVITY_END, AML_PROCESS_START, AML_PROCESS_END, AML_ALERT_GOOGLE, AML_ALERT_LEGACY, AML_ALERT_ADHOC, AML_ALERT_EXPLORATORY, AML_ALERT_EXTERNAL, AML_SAR, AML_EXIT"},
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Party table reference (investigation subject)", "references": "Party.party_id"},
+          {"name": "risk_typology_measurements", "type": "STRUCT", "mode": "REPEATED", "description": "Measured risks (risk_typology_id required)"},
+          {"name": "risk_case_id", "type": "STRING", "mode": "REQUIRED", "description": "Overall case identifier"}
+        ]
+      },
+      {
+        "name": "PartySupplementaryData",
+        "classification": "RECOMMENDED",
+        "description": "Lets you add supplementary data for parties to enhance model performance with additional, relevant Party data.",
+        "primary_key": ["party_supplementary_data_id", "party_id", "validity_start_time"],
+        "fields": [
+          {"name": "party_supplementary_data_id", "type": "STRING", "mode": "REQUIRED", "description": "Field identifier matching across datasets"},
+          {"name": "validity_start_time", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "When record became valid"},
+          {"name": "is_entity_deleted", "type": "BOOL", "mode": "NULLABLE", "description": "Indicates data no longer valid"},
+          {"name": "source_system", "type": "STRING", "mode": "NULLABLE", "description": "System data origin"},
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Party table reference", "references": "Party.party_id"},
+          {"name": "supplementary_data_payload", "type": "STRUCT", "mode": "REQUIRED", "description": "Contains float64 value field"}
+        ]
+      },
+      {
+        "name": "RetailPartiesRegistration",
+        "classification": "REGISTRATION",
+        "description": "Used for importing/registering retail customers for AML AI processing (see register-parties guide).",
+        "fields": [
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique customer identifier", "references": "Party.party_id"},
+          {"name": "party_size", "type": "STRING", "mode": "NULLABLE", "description": "Not applicable for retail parties"}
+        ]
+      },
+      {
+        "name": "CommercialPartiesRegistration",
+        "classification": "REGISTRATION",
+        "description": "Used for importing/registering commercial customers for AML AI processing (see register-parties guide).",
+        "fields": [
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique customer identifier", "references": "Party.party_id"},
+          {"name": "party_size", "type": "STRING", "mode": "REQUIRED", "description": "SMALL or LARGE, based on monthly transaction volume"}
+        ]
+      }
+    ],
+    "relationships": [
+      {"from": "AccountPartyLink.party_id", "to": "Party.party_id"},
+      {"from": "Transaction.account_id", "to": "AccountPartyLink.account_id"},
+      {"from": "Transaction.counterparty_account.account_id", "to": "AccountPartyLink.account_id", "note": "optional; may reference an external institution"},
+      {"from": "RiskCaseEvent.party_id", "to": "Party.party_id"},
+      {"from": "InteractionEvent.party_id", "to": "Party.party_id"},
+      {"from": "InteractionEvent.account_id", "to": "AccountPartyLink.account_id", "note": "optional"},
+      {"from": "PartySupplementaryData.party_id", "to": "Party.party_id"},
+      {"from": "RetailPartiesRegistration.party_id", "to": "Party.party_id"},
+      {"from": "CommercialPartiesRegistration.party_id", "to": "Party.party_id"}
+    ]
+  },
+  "output_data_model": {
+    "description": "Tables produced by AML AI as prediction/explainability/metadata output, written to BigQuery destinations configured by the customer.",
+    "tables": [
+      {
+        "name": "RiskScores",
+        "destination": "BigQuery table specified in outputs.predictionDestination",
+        "description": "Party-level suspicious activity risk score for a given risk period.",
+        "fields": [
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique party ID string"},
+          {"name": "risk_period_end_time", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "The end of the target period, in the timezone of the dataset"},
+          {"name": "risk_score", "type": "FLOAT64", "mode": "REQUIRED", "description": "Prediction value between 0 and 1; higher score means higher risk"}
+        ]
+      },
+      {
+        "name": "Explainability",
+        "destination": "BigQuery table specified in outputs.explainabilityDestination",
+        "description": "Feature-family attributions explaining each party's risk score.",
+        "fields": [
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique party identifier"},
+          {"name": "risk_period_end_time", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "Period end timestamp in dataset timezone"},
+          {"name": "attributions", "type": "STRUCT", "mode": "REPEATED", "description": "Record of feature families and their attribution value", "subfields": [
+            {"name": "feature", "type": "STRING", "mode": "REQUIRED", "description": "Name of feature family"},
+            {"name": "attribution", "type": "FLOAT64", "mode": "REQUIRED", "description": "Feature family's attribution score"}
+          ]}
+        ]
+      },
+      {
+        "name": "RegisteredPartiesExport",
+        "destination": "BigQuery table specified in the dataset field of the export request",
+        "description": "Export of parties registered for AML AI processing, with tiering/lifecycle metadata.",
+        "fields": [
+          {"name": "party_id", "type": "STRING", "mode": "REQUIRED", "description": "Unique identifier of the party in the instance's datasets"},
+          {"name": "party_size", "type": "STRING", "mode": "NULLABLE", "description": "Tier designation (NULL for retail; SMALL/LARGE for commercial)"},
+          {"name": "earliest_remove_time", "type": "STRING", "mode": "NULLABLE", "description": "The earliest time at which the party can be removed"},
+          {"name": "party_with_prediction_intent", "type": "STRING", "mode": "NULLABLE", "description": "Indicator of prediction history"},
+          {"name": "registration_or_uptier_time", "type": "STRING", "mode": "NULLABLE", "description": "The time at which the party was registered or uptiered"}
+        ]
+      },
+      {
+        "name": "ExportedMetadata",
+        "destination": "BigQuery table associated with engine configs, models, backtest results, or prediction results",
+        "description": "Generic metadata/metrics export table used across multiple AML AI resource types.",
+        "fields": [
+          {"name": "resource_type", "type": "STRING", "mode": "REQUIRED", "description": "Type of AML AI resource, such as an engine config or prediction results"},
+          {"name": "resource_id", "type": "STRING", "mode": "REQUIRED", "description": "Name of the resource"},
+          {"name": "name", "type": "STRING", "mode": "REQUIRED", "description": "Name of the metadata entry, such as a metric"},
+          {"name": "value", "type": "JSON", "mode": "REQUIRED", "description": "Value of the metadata entry"}
+        ],
+        "metadata_metrics_by_resource_type": {
+          "EngineConfig": ["ExpectedRecallPreTuning", "ExpectedRecallPostTuning", "Missingness"],
+          "Model": ["Missingness", "Importance"],
+          "BacktestResults": ["ObservedRecallValues", "ObservedRecallValuesPerTypology", "Missingness", "Skew"],
+          "PredictionResults": ["Missingness", "Skew"]
+        }
+      }
+    ]
+  },
+  "input_to_output_linkages": [
+    {"from": "input.Party.party_id", "to": "output.RiskScores.party_id", "note": "Risk score is produced per party in the input Party table"},
+    {"from": "input.Party.party_id", "to": "output.Explainability.party_id", "note": "Explainability attributions are produced per party"},
+    {"from": "input.RetailPartiesRegistration.party_id | input.CommercialPartiesRegistration.party_id", "to": "output.RegisteredPartiesExport.party_id", "note": "Registered parties export mirrors registration input, plus lifecycle metadata"},
+    {"from": "input.RiskCaseEvent.risk_typology_measurements", "to": "output.ExportedMetadata (BacktestResults.ObservedRecallValuesPerTypology)", "note": "Backtest recall metrics are computed per risk typology defined via RiskCaseEvent"},
+    {"from": "input tables (Party, AccountPartyLink, Transaction, InteractionEvent, RiskCaseEvent, PartySupplementaryData)", "to": "output.ExportedMetadata (Model.Missingness, Model.Importance; EngineConfig.Missingness)", "note": "Missingness/importance metrics are computed over the feature families derived from input tables"}
+  ]
+}

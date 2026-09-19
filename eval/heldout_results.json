@@ -56,15 +56,9 @@
   {
     "question": "List the party id and account id for every account-party link",
     "gold_sql": "SELECT party_id, account_id FROM AccountPartyLink",
-    "pred_sql": "SELECT party_id, account_id FROM AccountPartyLink",
+    "pred_sql": "SELECT party_id, account_iD FROM AccountPartyLink",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "column",
-        "from": "account_ide",
-        "to": "account_id"
-      }
-    ],
+    "corrections": [],
     "schema_valid": true,
     "schema_violations": [],
     "gold_tables": [
@@ -80,22 +74,26 @@
   {
     "question": "How many login interaction events are there?",
     "gold_sql": "SELECT COUNT(*) FROM InteractionEvent WHERE type = 'LOGIN'",
-    "pred_sql": "SELECT count(*) FROM login interaction event",
+    "pred_sql": "SELECT count(*) FROM InteractionEvent",
     "source": "model_generation",
-    "corrections": [],
-    "schema_valid": false,
-    "schema_violations": [
-      "table 'login' not found in schema",
-      "identifier 'login' does not match any table, alias, or column in scope",
-      "identifier 'interaction' does not match any table, alias, or column in scope",
-      "identifier 'event' does not match any table, alias, or column in scope"
+    "corrections": [
+      {
+        "kind": "table",
+        "stage": "semantic_phrase",
+        "from": "login interaction event",
+        "to": "InteractionEvent"
+      }
     ],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "InteractionEvent"
     ],
-    "pred_tables": [],
-    "table_recall": 0.0,
-    "table_precision": 0.0,
+    "pred_tables": [
+      "InteractionEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
     "exact_match": false
   },
   {

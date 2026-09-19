@@ -38,7 +38,6 @@ model input, since doing so would push the input outside the format the
 model was trained on and degrade generation quality.
 """
 
-import difflib
 import json
 import os
 import re
@@ -340,7 +339,11 @@ def _prune_fields(t, q_tokens):
         tokens |= _tokenize(_clean_description_for_retrieval(f["description"]))
         return len(q_tokens & tokens)
 
-    ranked = sorted(fields, key=relevance, reverse=True)
+    # Tie-break alphabetically for the same reason table retrieval does:
+    # FalkorDB doesn't guarantee HAS_FIELD row order without an ORDER BY, so
+    # which fields survive pruning on a relevance tie varied nondeterministically
+    # between otherwise-identical runs without this.
+    ranked = sorted(fields, key=lambda f: (-relevance(f), f["name"]))
     return ranked[:MAX_FIELDS_PER_TABLE]
 
 
@@ -526,17 +529,26 @@ def retrieve_exemplar(question, threshold=EXEMPLAR_MATCH_THRESHOLD):
 _TABLE_REF_RE = re.compile(r"\b(FROM|JOIN)\s+([A-Za-z_][A-Za-z0-9_]*)", re.IGNORECASE)
 _COLUMN_REF_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\.\s*([A-Za-z_][A-Za-z0-9_]*)\b")
 
-# Calibrated empirically, not guessed: a short hallucinated identifier
-# embedded against a long table-gist paragraph produces much lower absolute
-# cosine similarity than two comparable-length sentences do (general-purpose
-# sentence embeddings aren't built for this length asymmetry), even when the
-# ranking is correct -- e.g. "transactionlog" scores only 0.49 against
-# Transaction's gist despite being an obvious match, and "sar_filing" scores
-# 0.25 against RiskCaseEvent's. A threshold tuned for symmetric sentence
-# pairs (like the ~0.6-0.9 range used in exemplar matching above) would
-# reject every one of these. Column-level cutoffs sit higher because field
-# descriptions are shorter, so the asymmetry is less severe.
-TABLE_SEMANTIC_REPAIR_CUTOFF = 0.20
+# Calibrated against a labeled set of real hallucinations observed across
+# this session's eval runs (positive: should repair; negative: garbage that
+# should stay unresolved), not guessed -- see schema_validator.py's matching
+# constants for the full measured evidence (this module's gist format is the
+# same "name: desc. Fields: ..." shape, so the same numbers apply).
+#
+# A short hallucinated identifier embedded against a long table-gist scores
+# much lower in absolute cosine similarity than two comparable-length
+# sentences do, even when the ranking is correct -- e.g. "transactionlog"
+# scores only 0.50 against Transaction's gist despite being an obvious
+# match. TABLE_SEMANTIC_REPAIR_CUTOFF sits at 0.30 rather than lower because
+# a real negative ("Model", a hallucination with no matching table) scored
+# 0.28-0.33 -- *higher* than "SAR"/"sar_filing"'s 0.23-0.25 against
+# RiskCaseEvent. No single cutoff catches the SAR-class repairs without also
+# letting Model-class negatives through as false corrections, so this errs
+# toward never wrongly "fixing" a table name, at the cost of leaving a few
+# genuine matches unresolved. Column-level cutoffs sit higher because field
+# descriptions are shorter, so the length asymmetry is less severe, and
+# garbage-vs-signal separation was clean at that scale.
+TABLE_SEMANTIC_REPAIR_CUTOFF = 0.30
 COLUMN_SEMANTIC_REPAIR_CUTOFF = 0.35
 
 
@@ -554,10 +566,14 @@ def repair_table_names(sql, tables, cutoff=0.5, semantic_cutoff=TABLE_SEMANTIC_R
         for t in valid_tables:
             if t.lower() == name.lower():
                 return f"{keyword} {t}"
-        close = difflib.get_close_matches(name, valid_tables, n=1, cutoff=cutoff)
+        # schema_validator._fuzzy_match_ci (not plain difflib): case-
+        # insensitive, and guards short words against coincidental
+        # character-overlap matches (e.g. "sar" vs "party" scores exactly
+        # 0.5 from two shared letters alone).
+        close = schema_validator._fuzzy_match_ci(name, valid_tables, cutoff)
         if close:
-            corrections.append({"kind": "table", "stage": "kg_repair", "from": name, "to": close[0]})
-            return f"{keyword} {close[0]}"
+            corrections.append({"kind": "table", "stage": "kg_repair", "from": name, "to": close})
+            return f"{keyword} {close}"
         if valid_tables:
             if gist_vecs is None:
                 gist_vecs = semantic_search.embed([_table_gist(t, tables[t]) for t in valid_tables])
@@ -598,10 +614,10 @@ def repair_column_names(sql, tables, cutoff=0.6, semantic_cutoff=COLUMN_SEMANTIC
         for c in valid_columns:
             if c.lower() == col.lower():
                 return f"{prefix}.{c}"
-        close = difflib.get_close_matches(col, valid_columns, n=1, cutoff=cutoff)
+        close = schema_validator._fuzzy_match_ci(col, valid_columns, cutoff)
         if close:
-            corrections.append({"kind": "column", "stage": "kg_repair", "from": col, "to": close[0]})
-            return f"{prefix}.{close[0]}"
+            corrections.append({"kind": "column", "stage": "kg_repair", "from": col, "to": close})
+            return f"{prefix}.{close}"
         if valid_columns:
             if col_gist_vecs is None:
                 col_gist_vecs = semantic_search.embed(

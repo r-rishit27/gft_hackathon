@@ -153,14 +153,51 @@ def get_field_descriptions():
 
 
 def build_table_descriptions(schema=None):
-    """Returns {table_name: description}, the gist source for table-level
-    semantic repair."""
+    """Returns {table_name: description} -- the bare table description only.
+    Kept for callers that just want the description text; table-level
+    semantic repair itself uses build_table_gists() below, not this."""
     schema = schema or load_schema()
     return {
         table["name"]: table.get("description", "") or ""
         for section in ("input_data_model", "output_data_model")
         for table in schema[section]["tables"]
     }
+
+
+def build_table_gists(schema=None):
+    """Returns {table_name: gist} where the gist mirrors
+    pipeline/text2sql_falkordb.py's _table_gist (description + field names +
+    enum values). Calibrating table-level semantic repair against real
+    observed hallucinations showed the bare table description alone isn't
+    enough to separate genuine matches from noise: "SAR" against
+    RiskCaseEvent's *description* alone scores only 0.21 -- barely above a
+    clearly-wrong negative ("Model" scored 0.33) -- because the description
+    never mentions SAR; only the type field's enum value AML_SAR does. The
+    retrieval step already needed this same enrichment for the same reason;
+    repair needs it too, or it can't tell a real match from noise."""
+    schema = schema or load_schema()
+    gists = {}
+    for section in ("input_data_model", "output_data_model"):
+        for table in schema[section]["tables"]:
+            field_parts = []
+            for f in table["fields"]:
+                vals = [v for v in (f.get("allowed_enum_values") or []) if isinstance(v, str)]
+                if not vals:
+                    vals = extract_enum_hint(f.get("description"))
+                field_parts.append(f'{f["name"]} ({" ".join(vals)})' if vals else f["name"])
+            desc = _clean_description(table.get("description", ""))
+            gists[table["name"]] = f'{desc}. Fields: {" ".join(field_parts)}'
+    return gists
+
+
+_TABLE_GISTS = None
+
+
+def get_table_gists():
+    global _TABLE_GISTS
+    if _TABLE_GISTS is None:
+        _TABLE_GISTS = build_table_gists()
+    return _TABLE_GISTS
 
 
 _TABLE_DESCRIPTIONS = None
@@ -207,13 +244,28 @@ def _describe_field(name, preferred_tables, field_descs):
     return ""
 
 
-# Calibrated the same way as pipeline/text2sql_falkordb.py's repair
-# functions: a short hallucinated identifier embedded against a longer gist
-# scores much lower in absolute cosine similarity than two comparable-length
-# sentences do, so these sit well below the ~0.7+ range used for exemplar
-# matching. See that module's TABLE_SEMANTIC_REPAIR_CUTOFF /
-# COLUMN_SEMANTIC_REPAIR_CUTOFF docstring for the measured evidence.
-TABLE_SEMANTIC_CUTOFF = 0.20
+# Calibrated against a labeled set of real hallucinations observed across
+# this session's eval runs (positive: should repair; negative: garbage that
+# should stay an honest violation) -- not guessed or hand-picked. A short
+# hallucinated identifier embedded against a longer gist scores much lower
+# in absolute cosine similarity than two comparable-length sentences do, so
+# both sit well below the ~0.7+ range used for exemplar matching.
+#
+# COLUMN_SEMANTIC_CUTOFF=0.35: clean separation exists. Garbage tokens
+# ("SELECTION", "WHERES") scored 0.11-0.23; genuine repairs ("TYPICAL_TYPE"
+# -> type, "risk_level" -> risk_score) scored 0.38-0.57.
+#
+# TABLE_SEMANTIC_CUTOFF=0.30: no cutoff cleanly separates every case tested.
+# "SAR"/"sar_filing" (should match RiskCaseEvent) scored only 0.23-0.25,
+# *below* a clear negative ("Model", a real hallucination with no matching
+# table) at 0.28. Rather than pick a lower cutoff that lets "Model"-class
+# negatives through as false corrections, this sits above the negative and
+# deliberately gives up the SAR-class repairs -- consistent with this
+# module's overall stance of leaving an unresolvable identifier flagged as a
+# violation rather than risking a wrong "fix". Clearer cases (transactionlog
+# -> Transaction 0.50, "login interaction event" -> InteractionEvent 0.48)
+# still pass with a comfortable margin.
+TABLE_SEMANTIC_CUTOFF = 0.30
 COLUMN_SEMANTIC_CUTOFF = 0.35
 
 
@@ -309,10 +361,21 @@ def _fuzzy_match_ci(word, candidates, cutoff):
     scores 0.46, well under a 0.6 cutoff, while "risk_type" vs "type" scores
     0.62 and passes) -- comparing lowercased strings avoids fixing an
     identifier only when its casing happens to line up by chance. Returns
-    the candidate in its original casing, or None."""
+    the candidate in its original casing, or None.
+
+    Short words get a much tighter effective cutoff: character-overlap
+    similarity is noisy at short lengths -- "sar" vs "party" scores exactly
+    0.5 from two coincidentally shared letters, which would silently
+    "fix" a hallucinated "SAR" table into "Party" at the default table
+    cutoff. Below 5 characters, only accept a very close match (>=0.75);
+    anything less confident should fall through to the semantic fallback
+    (or an honest violation) instead of a coin-flip character match."""
     candidates = list(candidates)
+    if not candidates:
+        return None
     lower_to_original = {c.lower(): c for c in candidates}
-    close = difflib.get_close_matches(word.lower(), list(lower_to_original.keys()), n=1, cutoff=cutoff)
+    effective_cutoff = max(cutoff, 0.75) if len(word) < 5 else cutoff
+    close = difflib.get_close_matches(word.lower(), list(lower_to_original.keys()), n=1, cutoff=effective_cutoff)
     return lower_to_original[close[0]] if close else None
 
 
@@ -342,31 +405,85 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
     cte_names = {m.group(1).lower() for m in re.finditer(r"\bWITH\s+([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(", masked_sql, re.IGNORECASE)}
     cte_names |= {m.group(1).lower() for m in re.finditer(r"\)\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(", masked_sql, re.IGNORECASE)}
 
-    table_desc = get_table_descriptions()
+    table_gists = get_table_gists()
     field_descs = get_field_descriptions()
+    table_candidates = [(t, table_gists.get(t, "")) for t in all_tables]
 
     # --- 1. Table names -----------------------------------------------
-    def fix_table(match):
-        keyword, name = match.group(1), match.group(2)
+    # A hallucinated table name is sometimes more than one bare word (e.g.
+    # "FROM login interaction event" -- the model meant InteractionEvent but
+    # spelled it as three loose words instead of one identifier). A plain
+    # regex substitution can only ever replace the single word captured by
+    # _TABLE_REF_RE, so this is a manual scan: after the first word fails
+    # exact/fuzzy/semantic matching alone, greedily grab up to 2 more
+    # trailing bare words (stopping at any SQL keyword) and retry the
+    # semantic match against the whole phrase -- if that resolves
+    # confidently, the extra words are consumed (removed) along with the
+    # first, since they were never a second FROM source or extra clause.
+    _TRAILING_WORD_RE = re.compile(r"\s+([A-Za-z_][A-Za-z0-9_]*)")
+
+    def _consume_extra_words(text, start, max_extra=2):
+        words, spans, idx = [], [], start
+        while len(words) < max_extra:
+            m = _TRAILING_WORD_RE.match(text, idx)
+            if not m or m.group(1).lower() in SQL_KEYWORDS:
+                break
+            words.append(m.group(1))
+            spans.append(m.end())
+            idx = m.end()
+        return words, spans
+
+    out_parts = []
+    pos = 0
+    for m in _TABLE_REF_RE.finditer(masked_sql):
+        if m.start() < pos:
+            continue  # already consumed as part of a previous multi-word phrase
+        out_parts.append(masked_sql[pos:m.start()])
+        keyword, name = m.group(1), m.group(2)
+
         if name.lower() in cte_names:
-            return match.group(0)
-        for t in all_tables:
-            if t.lower() == name.lower():
-                return f"{keyword} {t}"
+            out_parts.append(m.group(0))
+            pos = m.end()
+            continue
+
+        exact = next((t for t in all_tables if t.lower() == name.lower()), None)
+        if exact:
+            out_parts.append(f"{keyword} {exact}")
+            pos = m.end()
+            continue
+
         close = _fuzzy_match_ci(name, all_tables, table_cutoff)
         if close:
             corrections.append({"kind": "table", "from": name, "to": close})
-            return f"{keyword} {close}"
-        sem = _semantic_best_match(
-            name, [(t, _clean_description(table_desc.get(t, ""))) for t in all_tables], TABLE_SEMANTIC_CUTOFF
-        )
+            out_parts.append(f"{keyword} {close}")
+            pos = m.end()
+            continue
+
+        extra_words, extra_spans = _consume_extra_words(masked_sql, m.end())
+        if extra_words:
+            phrase = " ".join([name] + extra_words)
+            sem_phrase = _semantic_best_match(phrase, table_candidates, TABLE_SEMANTIC_CUTOFF)
+            if sem_phrase:
+                corrections.append({
+                    "kind": "table", "stage": "semantic_phrase", "from": phrase, "to": sem_phrase,
+                })
+                out_parts.append(f"{keyword} {sem_phrase}")
+                pos = extra_spans[-1]
+                continue
+
+        sem = _semantic_best_match(name, table_candidates, TABLE_SEMANTIC_CUTOFF)
         if sem:
             corrections.append({"kind": "table", "stage": "semantic", "from": name, "to": sem})
-            return f"{keyword} {sem}"
-        violations.append(f"table '{name}' not found in schema")
-        return match.group(0)
+            out_parts.append(f"{keyword} {sem}")
+            pos = m.end()
+            continue
 
-    masked_sql = _TABLE_REF_RE.sub(fix_table, masked_sql)
+        violations.append(f"table '{name}' not found in schema")
+        out_parts.append(m.group(0))
+        pos = m.end()
+
+    out_parts.append(masked_sql[pos:])
+    masked_sql = "".join(out_parts)
 
     # --- 2. Alias -> table map (after table names are corrected) ------
     alias_to_table = {}
@@ -452,7 +569,13 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
         if close and close.lower() != lw:
             corrections.append({"kind": "column", "from": word, "to": close})
             return close
-        if len(word) >= 4 and fields_in_query:
+        # Length floor of 3 (not the previous 4): short real identifiers
+        # already exit above via the alias (t\d+) and known-table/-field
+        # checks, and SAR-length garbled fragments (e.g. a stray 3-letter
+        # token) deserve the same repair attempt and, failing that, the same
+        # violation flag as longer ones -- silently ignoring them just hides
+        # the failure instead of catching it.
+        if len(word) >= 3 and fields_in_query:
             sem = _semantic_best_match(
                 word,
                 [(c, _describe_field(c, list(tables_in_query), field_descs)) for c in fields_in_query],
@@ -461,7 +584,7 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
             if sem:
                 corrections.append({"kind": "column", "stage": "semantic", "from": word, "to": sem})
                 return sem
-        if len(word) >= 4:
+        if len(word) >= 3:
             violations.append(f"identifier '{word}' does not match any table, alias, or column in scope")
         return word  # leave ambiguous/unresolvable bare words in place rather than guess
 

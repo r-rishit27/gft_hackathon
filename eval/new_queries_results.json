@@ -71,7 +71,7 @@
   {
     "question": "What is the minimum and maximum risk score for each risk period?",
     "gold_sql": "SELECT risk_period_end_time, MIN(risk_score) AS min_score, MAX(risk_score) AS max_score FROM RiskScores GROUP BY risk_period_end_time",
-    "pred_sql": "SELECT min(risk_case_id), max(type-score), type FROM RiskCaseEvent GROUP BY risk_typology_measurements",
+    "pred_sql": "SELECT min(risk_case_id), max(type-score), risk_case_event_id FROM RiskCaseEvent GROUP BY risk_case_id",
     "source": "model_generation",
     "corrections": [
       {
@@ -87,15 +87,14 @@
       },
       {
         "kind": "column",
-        "stage": "semantic",
-        "from": "risk_period_time",
-        "to": "type"
+        "from": "risk_period_end",
+        "to": "risk_case_event_id"
       },
       {
         "kind": "column",
         "stage": "semantic",
-        "from": "risk_previous_month_end",
-        "to": "risk_typology_measurements"
+        "from": "risk_previous_perior_end",
+        "to": "risk_case_id"
       }
     ],
     "schema_valid": false,
@@ -145,25 +144,17 @@
   {
     "question": "How many commercial parties are registered as large?",
     "gold_sql": "SELECT COUNT(*) FROM CommercialPartiesRegistration WHERE party_size = 'LARGE'",
-    "pred_sql": "SELECT count(*) FROM Party WHERE party_id IN ( SELECTION party_ID FROM Party JOIN AccountPartyLink ON Party_iD = party_Id WHERES assets_value_range = \"commercial\") AND is_entity_deleted = 'yes';",
+    "pred_sql": "SELECT count(*) FROM Party WHERE company = \"COMPANY\" AND is_entity_deleted = \"NOT\";",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "column",
-        "from": "party_value_range",
-        "to": "assets_value_range"
-      }
-    ],
+    "corrections": [],
     "schema_valid": false,
     "schema_violations": [
-      "identifier 'SELECTION' does not match any table, alias, or column in scope",
-      "identifier 'WHERES' does not match any table, alias, or column in scope"
+      "identifier 'company' does not match any table, alias, or column in scope"
     ],
     "gold_tables": [
       "CommercialPartiesRegistration"
     ],
     "pred_tables": [
-      "AccountPartyLink",
       "Party"
     ],
     "table_recall": 0.0,

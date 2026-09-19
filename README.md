@@ -4,19 +4,57 @@ A text-to-SQL pipeline for AML (anti-money-laundering) KPI reporting: ask a ques
 get back a validated SQL query grounded in the AML data model's real schema — no execution, no fabricated
 numbers, just a query you can review and run yourself.
 
-**Pipeline:** natural-language question → retrieve relevant tables from a FalkorDB knowledge graph →
-serialize the schema → `mannix/defog-llama3-sqlcoder-8b` (via a local Ollama server, deterministic/
-temperature 0) generates SQL, or an exemplar-retrieval shortcut returns a verified answer directly →
-schema-grounded repair fixes hallucinated table/column names and enum-value casing → final validation
-against the canonical schema file before the query is returned.
-
-The original `gaussalgo/T5-LM-Large-text2sql-spider` path (optionally fine-tuned) is still available —
-set `MODEL_BACKEND=t5` — but SQLCoder is the default: it's instruction-following and needs no fine-tuning,
-whereas the CPU-only T5 fine-tuning attempts in this repo's history never converged.
-
 See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results and known limitations.
 
 ---
+
+## Architecture
+
+```
+question
+   │
+   ▼
+retrieve relevant tables/fields  (FalkorDB knowledge graph — hybrid lexical + semantic search)
+   │
+   ▼
+exemplar retrieval ──── (near-)duplicate of a verified KPI question? ──► return its gold SQL, skip generation
+   │ no match
+   ▼
+serialize retrieved schema as CREATE TABLE DDL
+   │
+   ▼
+mannix/defog-llama3-sqlcoder-8b  (local Ollama server, temperature 0 / deterministic)
+system prompt: "AML analyst and business leader... strictly adhere to the schema"
+   │
+   ▼
+schema-grounded repair  (fuzzy + semantic match hallucinated table/column names back onto
+                          the tables retrieval actually knows are real for this question)
+   │
+   ▼
+final validation gate  (schema_validator.py — re-checks against the full canonical schema
+                         file, corrects enum-value casing, catches anything repair missed)
+   │
+   ▼
+validated SQL + violation list, returned to the caller
+```
+
+**Why this shape:**
+- **Knowledge-graph retrieval, not a hardcoded schema.** The AML data model has 12 tables and hundreds of
+  fields; a fixed prompt schema would either omit relevant tables or bloat the model's input on every
+  question. Retrieval blends lexical overlap (exact identifier/enum-value hits) with semantic similarity
+  (so "customers" still finds `Party`, "SAR" still finds `RiskCaseEvent` via its `type` enum) and expands
+  one hop across foreign keys so joinable tables aren't dropped.
+- **SQLCoder over a fine-tuned model.** `mannix/defog-llama3-sqlcoder-8b` runs locally via Ollama,
+  needs no fine-tuning, and is instruction-following — it actually attends to the system prompt's
+  read-only/schema-adherence rules, unlike a plain seq2seq checkpoint. Run deterministically
+  (temperature 0, fixed seed) for reproducible query generation.
+- **Two independent repair passes.** KG-scoped repair (right after generation) has the retrieval step's
+  own knowledge of which tables/columns are real for *this* question; the final validation gate re-checks
+  against the *entire* canonical schema, so a correct table that fell outside retrieval's top-k selection
+  can still be recovered, and anything the first pass missed gets a second, independent check.
+- **Exemplar retrieval beats blind regeneration.** A fixed KPI chatbot sees the same handful of questions
+  repeatedly; reusing a verified answer for a (near-)duplicate is safer than regenerating and risking a new
+  hallucination every time. Novel questions still fall through to model generation.
 
 ## Project structure
 
@@ -27,21 +65,20 @@ See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results
 │   └── index.html            # Chat UI served at /ui, talks to app.py's API
 ├── pipeline/                 # Core text-to-SQL pipeline (importable package)
 │   ├── text2sql_falkordb.py  #   retrieval + schema serialization + exemplar shortcut + inference
-│   └── schema_validator.py   #   final validation/repair against the canonical schema file
+│   ├── schema_validator.py   #   final validation/repair against the canonical schema file
+│   └── semantic_search.py    #   shared sentence-embedding helper used across retrieval/repair
 ├── graph/
 │   └── build_falkordb_graph.py   # Loads schema/aml_data_model_schema.json into FalkorDB as a knowledge graph
 ├── schema/
 │   ├── aml_data_model_schema.json  # Canonical AML input/output data model (tables, fields, types, linkages)
 │   └── aml_kpi_queries.sql         # Hand-written reference KPI queries against that schema
-├── training/
-│   ├── finetune_text2sql.py  # Fine-tunes the base model on the exemplar bank (eval/eval_testcases.json)
-│   └── finetuned_model/      # Fine-tuned model output (gitignored — regenerate via finetune_text2sql.py)
 ├── eval/
 │   ├── evaluate_text2sql.py  # Evaluation harness — runs the pipeline against a test file, scores it
 │   ├── eval_testcases.json   #   exemplar bank (also used at runtime for exemplar retrieval)
 │   ├── eval_heldout.json     #   held-out test set (paraphrases + novel questions)
 │   ├── eval_new_queries.json #   additional schema-strict test questions
 │   └── *_results.json        #   evaluation output (regenerated by evaluate_text2sql.py)
+├── training/                 # Legacy: fine-tuning the older T5 backend (see "Alternative backend" below)
 └── docs/
     ├── TEST_REPORT.md        # Detailed test report: methodology, results, bugs found, limitations
     └── reference/            # Design reference material (not part of the app)
@@ -85,29 +122,31 @@ Then open `http://localhost:8000/ui/` for the chat interface, or `POST /generate
 
 **CLI** (one-off question, no server):
 ```
-python pipeline/text2sql_falkordb.py "Show the top 10 parties by risk score"
+python pipeline/text2sql_falkordb.py --with-system-prompt "Show the top 10 parties by risk score"
 ```
 
 **Evaluate the pipeline** against a test set:
 ```
 python eval/evaluate_text2sql.py --testcases eval/eval_heldout.json --out results.json
 ```
-Defaults to the fine-tuned model in `training/finetuned_model/` if present, otherwise the base model.
-
-**Fine-tune** the model on the exemplar bank (CPU-only; slow — see `docs/TEST_REPORT.md` for caveats):
-```
-python training/finetune_text2sql.py --epochs 15 --out ./finetuned_model
-```
 
 ## Design notes
 
-- **Read-only by construction, not by trust.** The model only ever emits `SELECT` statements (a property
-  of its Spider training data, not enforced by prompting), and `schema_validator.py` verifies every table
-  and column reference before a query is returned — but neither guarantees the query is *correct*, only
-  that it's *safe to attempt*. Always review generated SQL before running it.
+- **Read-only by construction, not by trust.** The system prompt instructs SELECT-only, read-only
+  generation, and `schema_validator.py` independently verifies every table and column reference before a
+  query is returned — but neither guarantees the query is *correct*, only that it's *safe to attempt*.
+  Always review generated SQL before running it.
 - **Exemplar retrieval over blind generation.** For a fixed set of recurring KPI questions, reusing a
   verified answer beats regenerating and risking hallucination every time. Novel questions fall through to
   model generation, which is repaired and validated the same way.
 - **No result fabrication.** This pipeline generates SQL; it does not execute it or know what the data
   actually contains. The UI never shows numbers, charts, or KPIs that weren't computed from a real query
   result — see `docs/TEST_REPORT.md` §5 for exactly what schema validation does and doesn't guarantee.
+
+## Alternative backend (legacy)
+
+Set `MODEL_BACKEND=t5` to fall back to the original `gaussalgo/T5-LM-Large-text2sql-spider` checkpoint
+(optionally fine-tuned via `training/finetune_text2sql.py` on the exemplar bank). This path predates the
+SQLCoder/Ollama switch and is kept only for comparison: the CPU-only fine-tuning attempts in this repo's
+history never converged, and the base checkpoint isn't instruction-following, so it can't use the system
+prompt the way SQLCoder does.

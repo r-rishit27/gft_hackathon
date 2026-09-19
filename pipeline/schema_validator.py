@@ -22,7 +22,8 @@ import os
 import re
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SCHEMA_PATH = os.path.join(SCRIPT_DIR, "aml_data_model_schema.json")
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+SCHEMA_PATH = os.path.join(PROJECT_ROOT, "schema", "aml_data_model_schema.json")
 
 SQL_KEYWORDS = {
     "select", "from", "where", "group", "by", "order", "join", "on", "as", "and", "or", "not",

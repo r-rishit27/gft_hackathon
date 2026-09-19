@@ -11,13 +11,14 @@ to lock in correct answers for a fixed set of management KPI questions, not
 as a substitute for a properly sized fine-tuning set (typically hundreds+
 diverse question/SQL pairs per schema for real generalization).
 
-Usage:
-    python finetune_text2sql.py --epochs 15 --out ./finetuned_model
+Usage (from the project root, or from within training/):
+    python training/finetune_text2sql.py --epochs 15 --out ./finetuned_model
 """
 
 import argparse
 import json
 import os
+import sys
 
 from torch.utils.data import Dataset
 from transformers import (
@@ -28,10 +29,13 @@ from transformers import (
     Seq2SeqTrainingArguments,
 )
 
-import text2sql_falkordb as pipeline
-
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-TESTCASES_PATH = os.path.join(SCRIPT_DIR, "eval_testcases.json")
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, PROJECT_ROOT)  # so `pipeline` (a sibling of training/) is importable
+
+from pipeline import text2sql_falkordb as pipeline
+
+TESTCASES_PATH = os.path.join(PROJECT_ROOT, "eval", "eval_testcases.json")
 
 
 class SqlDataset(Dataset):

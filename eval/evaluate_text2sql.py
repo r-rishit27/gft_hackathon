@@ -13,19 +13,23 @@ aliasing legitimately vary):
     (informative, but a poor SQL similarity metric on its own -- kept as a
     reference point, not the headline number)
 
-Usage:
-    python evaluate_text2sql.py                          # eval_testcases.json
-    python evaluate_text2sql.py --testcases eval_heldout.json --out results.json
+Usage (from the project root, or from within eval/):
+    python eval/evaluate_text2sql.py                          # eval_testcases.json
+    python eval/evaluate_text2sql.py --testcases eval_heldout.json --out results.json
 """
 
 import argparse
 import json
 import os
 import re
-
-import text2sql_falkordb as pipeline
+import sys
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, PROJECT_ROOT)  # so `pipeline` (a sibling of eval/) is importable
+
+from pipeline import text2sql_falkordb as pipeline
+
 TESTCASES_PATH = os.path.join(SCRIPT_DIR, "eval_testcases.json")
 
 ALL_TABLE_NAMES = [
@@ -122,7 +126,7 @@ def summarize(results):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default=pipeline.MODEL_PATH)
+    parser.add_argument("--model", default=pipeline.DEFAULT_MODEL_PATH)
     parser.add_argument("--testcases", default=TESTCASES_PATH)
     parser.add_argument("--ground-tables", action="store_true",
                          help="prepend a dynamic 'use only these exact table names' line")

@@ -5,9 +5,10 @@ from dotenv import load_dotenv
 from falkordb import FalkorDB
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(SCRIPT_DIR, ".env"))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
-SCHEMA_PATH = os.path.join(SCRIPT_DIR, "aml_data_model_schema.json")
+SCHEMA_PATH = os.path.join(PROJECT_ROOT, "schema", "aml_data_model_schema.json")
 
 HOST = os.environ["FALKORDB_HOST"]
 PORT = int(os.environ["FALKORDB_PORT"])

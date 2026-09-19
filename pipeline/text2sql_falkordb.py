@@ -47,10 +47,18 @@ import sys
 from dotenv import load_dotenv
 from falkordb import FalkorDB
 
-import schema_validator
+try:
+    from pipeline import schema_validator
+except ImportError:
+    # Running this file directly (`python pipeline/text2sql_falkordb.py ...`)
+    # rather than as part of the `pipeline` package -- the script's own
+    # directory is already on sys.path, so the plain import finds the sibling
+    # module.
+    import schema_validator
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-load_dotenv(os.path.join(SCRIPT_DIR, ".env"))
+PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
 FALKORDB_HOST = os.environ["FALKORDB_HOST"]
 FALKORDB_PORT = int(os.environ["FALKORDB_PORT"])
@@ -264,7 +272,7 @@ def build_model_input(question, schema_string, with_system_prompt=False, ground_
     return " ".join(["Question: ", question, "Schema:", schema_string])
 
 
-FINETUNED_MODEL_DIR = os.path.join(SCRIPT_DIR, "finetuned_model")
+FINETUNED_MODEL_DIR = os.path.join(PROJECT_ROOT, "training", "finetuned_model")
 DEFAULT_MODEL_PATH = FINETUNED_MODEL_DIR if os.path.isdir(FINETUNED_MODEL_DIR) else MODEL_PATH
 
 
@@ -297,7 +305,7 @@ def generate_sql(tokenizer, model, model_input, max_length=512):
 # hallucination every time.
 # ---------------------------------------------------------------------------
 
-EXEMPLAR_BANK_PATH = os.path.join(SCRIPT_DIR, "eval_testcases.json")
+EXEMPLAR_BANK_PATH = os.path.join(PROJECT_ROOT, "eval", "eval_testcases.json")
 EXEMPLAR_MATCH_THRESHOLD = 0.6  # Jaccard token overlap
 
 

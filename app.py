@@ -1,11 +1,11 @@
 """
 FastAPI service: natural-language question in, SQL query out.
 
-Wraps the retrieval-augmented text2sql pipeline in text2sql_falkordb.py:
+Wraps the retrieval-augmented text2sql pipeline in pipeline/text2sql_falkordb.py:
 question -> retrieve relevant tables from the FalkorDB knowledge graph ->
 serialize schema -> gaussalgo/T5-LM-Large-text2sql-spider -> SQL string.
 
-Run:
+Run from the project root:
     uvicorn app:app --host 0.0.0.0 --port 8000
 
 Then:
@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-import text2sql_falkordb as pipeline
+from pipeline import text2sql_falkordb as pipeline
 
 model_state = {}
 

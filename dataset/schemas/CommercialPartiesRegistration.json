@@ -1,0 +1,14 @@
+[
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "Unique customer identifier",
+    "type": "STRING"
+  },
+  {
+    "name": "party_size",
+    "mode": "REQUIRED",
+    "description": "SMALL or LARGE, based on monthly transaction volume",
+    "type": "STRING"
+  }
+]

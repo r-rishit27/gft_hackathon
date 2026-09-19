@@ -1,0 +1,14 @@
+[
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "Unique customer identifier",
+    "type": "STRING"
+  },
+  {
+    "name": "party_size",
+    "mode": "NULLABLE",
+    "description": "Not applicable for retail parties",
+    "type": "STRING"
+  }
+]

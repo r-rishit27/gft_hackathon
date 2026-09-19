@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "non_naming_values_unchanged": true,
+  "baseline_matches_original": true,
+  "all_prefixes_match_owner_country": true,
+  "old_SYN_values_remaining": 0,
+  "unique_identifier_mappings": 64685,
+  "schema_and_relationship_checks": 3703144,
+  "companion_files_consistent": true
+}

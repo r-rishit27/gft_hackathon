@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "observed_via": "Authenticated Cloud Shell v2 staging checks and exact final-table comparisons on 2026-09-19",
+  "naming_version": "v2",
+  "cloud_violations_scope": "V2 staging; all final live rows verified equal to staged package",
+  "project": "gen-lang-client-0810987953",
+  "dataset": "aml_demo",
+  "location": "asia-south1",
+  "verified_row_counts": {
+    "Party": 1140,
+    "AccountPartyLink": 1000,
+    "Transaction": 50000,
+    "InteractionEvent": 12000,
+    "RiskCaseEvent": 565,
+    "PartySupplementaryData": 2000,
+    "RetailPartiesRegistration": 1000,
+    "CommercialPartiesRegistration": 0,
+    "RiskScores": 7566,
+    "Explainability": 7566,
+    "RegisteredPartiesExport": 1000,
+    "ExportedMetadata": 16
+  },
+  "cloud_violations": {
+    "orphan_transactions": 0,
+    "orphan_cases": 0,
+    "invalid_money": 0,
+    "invalid_scores": 0,
+    "customer_count_mismatch": 0,
+    "transaction_count_mismatch": 0,
+    "missing_explanations": 0
+  },
+  "local_tests": {"run": 9, "failures": 0},
+  "full_load_receipt_in_cloud_shell": "/home/harshticku/aml_package_v2_20260919/dataset/reports/migration_cloud.json",
+  "retention": "Sandbox expiration is enabled; see table expirationTime in the full load receipt."
+}

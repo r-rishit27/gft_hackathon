@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "observed_via": "Authenticated Cloud Shell migration completion output, 2026-09-19",
+  "dataset": "gen-lang-client-0810987953.aml_demo",
+  "backup": "gen-lang-client-0810987953.aml_demo_backup_20260919_v1",
+  "staging": "gen-lang-client-0810987953.aml_demo_stage_20260919_v2",
+  "exact_row_comparisons": "passed for baseline, backup, staging and final tables",
+  "schema_and_expiration_preserved": true,
+  "documentation_matches_deployment": true,
+  "replaced_tables": [
+    "Party", "AccountPartyLink", "Transaction", "InteractionEvent",
+    "RiskCaseEvent", "PartySupplementaryData", "RetailPartiesRegistration",
+    "CommercialPartiesRegistration", "RiskScores", "Explainability",
+    "RegisteredPartiesExport", "ExportedMetadata"
+  ]
+}

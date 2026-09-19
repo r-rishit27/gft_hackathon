@@ -32,4 +32,6 @@
 
 The foundation remains on `codex/aml-dataset-integration`. The dependent service/dashboard is on `codex/aml-analytics-service`; review it against the foundation branch first. Model-owned files are unchanged. Both branches must be integrated through review; nothing is pushed directly to `main`.
 
+The final refresh found the model owner's new main commit `a2ea455` (schema, graph, enum and retrieval updates). It was merged without conflicts into both review branches. The `/generate-sql` response contract remains compatible by source inspection, the model-owned paths match current `origin/main`, and the full 90-pass/6-skip suite was rerun after the merge. No live model behavior is inferred from this source check.
+
 Before enabling live access, follow the service README to approve view filters and IAM, configure local identity/ADC, start the actual model endpoint, and run the six explicit live tests. Preserve failures for review instead of substituting fixture results. After the foundation merges, update the dependent PR's base to `main` and merge current `main` without force-pushing.

@@ -2,6 +2,8 @@
 
 The model owner retains `app.py`, `pipeline/`, `training/`, `eval/`, `graph/` and the existing frontend. This package must not import those internals. No Gemini integration or credential is implemented here.
 
+Integration refresh: main commit `a2ea455` already adds schema, graph, explicit-enum and retrieval improvements. Those changes are preserved without edits in the analytics branches. The HTTP contract below remains unchanged; the checklist is a compatibility check, not a request to undo or duplicate that work.
+
 ## HTTP Contract
 
 Analytics calls `POST /generate-sql` with `{"question":"..."}`. The URL is server-configured; HTTP is allowed only on loopback, otherwise HTTPS is required. There is no redirect following or automatic retry. The HTTP transport timeout is 30 seconds. Response size is capped at 256 KB; candidate SQL is capped at 32 KB.

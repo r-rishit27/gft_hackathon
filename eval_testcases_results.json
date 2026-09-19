@@ -1,0 +1,240 @@
+[
+  {
+    "question": "How many SARs were filed each month?",
+    "gold_sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
+    "pred_sql": "SELECT DATE_TRUNC(DATE(event_time), MONTH) AS report_month, COUNT(*) AS sar_count FROM RiskCaseEvent WHERE type = 'AML_SAR' GROUP BY report_month ORDER BY report_month",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "RiskCaseEvent"
+    ],
+    "pred_tables": [
+      "RiskCaseEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "What percentage of alerted cases resulted in a SAR being filed?",
+    "gold_sql": "SELECT COUNT(DISTINCT a.risk_case_id) AS total_alerted_cases, COUNT(DISTINCT s.risk_case_id) AS cases_resulting_in_sar, SAFE_DIVIDE(COUNT(DISTINCT s.risk_case_id), COUNT(DISTINCT a.risk_case_id)) AS alert_to_sar_rate FROM RiskCaseEvent a JOIN RiskCaseEvent s ON a.risk_case_id = s.risk_case_id",
+    "pred_sql": "SELECT COUNT(DISTINCT a.risk_case_id) AS total_alerted_cases, COUNT(DISTINCT s.risk_case_id) AS cases_resulting_in_sar, SAFE_DIVIDE(COUNT(DISTINCT s.risk_case_id), COUNT(DISTINCT a.risk_case_id)) AS alert_to_sar_rate FROM RiskCaseEvent a JOIN RiskCaseEvent s ON a.risk_case_id = s.risk_case_id",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "RiskCaseEvent"
+    ],
+    "pred_tables": [
+      "RiskCaseEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "How many risk cases are currently open versus closed?",
+    "gold_sql": "WITH case_status AS (SELECT risk_case_id, MAX(IF(type = 'AML_PROCESS_START', event_time, NULL)) AS started_at, MAX(IF(type = 'AML_PROCESS_END', event_time, NULL)) AS ended_at FROM RiskCaseEvent GROUP BY risk_case_id) SELECT COUNTIF(ended_at IS NULL) AS open_cases, COUNTIF(ended_at IS NOT NULL) AS closed_cases, COUNT(*) AS total_cases FROM case_status",
+    "pred_sql": "WITH case_status AS (SELECT risk_case_id, MAX(IF(type = 'AML_PROCESS_START', event_time, NULL)) AS started_at, MAX(IF(type = 'AML_PROCESS_END', event_time, NULL)) AS ended_at FROM RiskCaseEvent GROUP BY risk_case_id) SELECT COUNTIF(ended_at IS NULL) AS open_cases, COUNTIF(ended_at IS NOT NULL) AS closed_cases, COUNT(*) AS total_cases FROM case_status",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "RiskCaseEvent"
+    ],
+    "pred_tables": [
+      "RiskCaseEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "What is the average resolution time in days for closed risk cases?",
+    "gold_sql": "WITH case_status AS (SELECT risk_case_id, MIN(IF(type = 'AML_PROCESS_START', event_time, NULL)) AS started_at, MAX(IF(type = 'AML_PROCESS_END', event_time, NULL)) AS ended_at FROM RiskCaseEvent GROUP BY risk_case_id) SELECT AVG(TIMESTAMP_DIFF(ended_at, started_at, HOUR)) / 24.0 AS avg_resolution_days FROM case_status WHERE started_at IS NOT NULL AND ended_at IS NOT NULL",
+    "pred_sql": "WITH case_status AS (SELECT risk_case_id, MIN(IF(type = 'AML_PROCESS_START', event_time, NULL)) AS started_at, MAX(IF(type = 'AML_PROCESS_END', event_time, NULL)) AS ended_at FROM RiskCaseEvent GROUP BY risk_case_id) SELECT AVG(TIMESTAMP_DIFF(ended_at, started_at, HOUR)) / 24.0 AS avg_resolution_days FROM case_status WHERE started_at IS NOT NULL AND ended_at IS NOT NULL",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "RiskCaseEvent"
+    ],
+    "pred_tables": [
+      "RiskCaseEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "How many risk cases are there for each case type?",
+    "gold_sql": "SELECT type, COUNT(DISTINCT risk_case_id) AS case_count FROM RiskCaseEvent GROUP BY type ORDER BY case_count DESC",
+    "pred_sql": "SELECT type, COUNT(DISTINCT risk_case_id) AS case_count FROM RiskCaseEvent GROUP BY type ORDER BY case_count DESC",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "RiskCaseEvent"
+    ],
+    "pred_tables": [
+      "RiskCaseEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "What percentage of parties have a risk score above 0.8 this period?",
+    "gold_sql": "SELECT risk_period_end_time, COUNTIF(risk_score >= 0.8) AS high_risk_parties, COUNT(*) AS total_scored_parties, SAFE_DIVIDE(COUNTIF(risk_score >= 0.8), COUNT(*)) AS pct_high_risk FROM RiskScores GROUP BY risk_period_end_time ORDER BY risk_period_end_time DESC",
+    "pred_sql": "SELECT risk_period_end_time, COUNTIF(risk_score >= 0.8) AS high_risk_parties, COUNT(*) AS total_scored_parties, SAFE_DIVIDE(COUNTIF(risk_score >= 0.8), COUNT(*)) AS pct_high_risk FROM RiskScores GROUP BY risk_period_end_time ORDER BY risk_period_end_time DESC",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "RiskScores"
+    ],
+    "pred_tables": [
+      "RiskScores"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "What is the average and 90th percentile risk score for each risk period?",
+    "gold_sql": "SELECT risk_period_end_time, AVG(risk_score) AS avg_risk_score, APPROX_QUANTILES(risk_score, 10)[OFFSET(9)] AS p90_risk_score FROM RiskScores GROUP BY risk_period_end_time ORDER BY risk_period_end_time",
+    "pred_sql": "SELECT risk_period_end_time, AVG(risk_score) AS avg_risk_score, APPROX_QUANTILES(risk_score, 10)[OFFSET(9)] AS p90_risk_score FROM RiskScores GROUP BY risk_period_end_time ORDER BY risk_period_end_time",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "RiskScores"
+    ],
+    "pred_tables": [
+      "RiskScores"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "Show the top 20 parties by risk score this period with their names",
+    "gold_sql": "SELECT rs.party_id, p.name, rs.risk_score FROM RiskScores rs JOIN Party p ON rs.party_id = p.party_id ORDER BY rs.risk_score DESC LIMIT 20",
+    "pred_sql": "SELECT rs.party_id, p.name, rs.risk_score FROM RiskScores rs JOIN Party p ON rs.party_id = p.party_id ORDER BY rs.risk_score DESC LIMIT 20",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "Party",
+      "RiskScores"
+    ],
+    "pred_tables": [
+      "Party",
+      "RiskScores"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "For parties that exited the bank, what is their average risk score at exit by month?",
+    "gold_sql": "SELECT DATE_TRUNC(p.exit_date, MONTH) AS exit_month, COUNT(*) AS exited_parties, AVG(rs.risk_score) AS avg_risk_score_at_exit FROM Party p JOIN RiskScores rs ON p.party_id = rs.party_id WHERE p.exit_date IS NOT NULL GROUP BY exit_month ORDER BY exit_month",
+    "pred_sql": "SELECT DATE_TRUNC(p.exit_date, MONTH) AS exit_month, COUNT(*) AS exited_parties, AVG(rs.risk_score) AS avg_risk_score_at_exit FROM Party p JOIN RiskScores rs ON p.party_id = rs.party_id WHERE p.exit_date IS NOT NULL GROUP BY exit_month ORDER BY exit_month",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "Party",
+      "RiskScores"
+    ],
+    "pred_tables": [
+      "Party",
+      "RiskScores"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "How many transactions were there each month by type and direction?",
+    "gold_sql": "SELECT DATE_TRUNC(DATE(book_time), MONTH) AS txn_month, type, direction, COUNT(*) AS txn_count FROM Transaction GROUP BY txn_month, type, direction ORDER BY txn_month, type",
+    "pred_sql": "SELECT DATE_TRUNC(DATE(book_time), MONTH) AS txn_month, type, direction, COUNT(*) AS txn_count FROM Transaction GROUP BY txn_month, type, direction ORDER BY txn_month, type",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "Transaction"
+    ],
+    "pred_tables": [
+      "Transaction"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "How many parties were registered at each registration time, broken down by tier?",
+    "gold_sql": "SELECT registration_or_uptier_time, COALESCE(party_size, 'RETAIL') AS tier, COUNT(*) AS registered_parties FROM RegisteredPartiesExport GROUP BY registration_or_uptier_time, tier ORDER BY registration_or_uptier_time",
+    "pred_sql": "SELECT registration_or_uptier_time, COALESCE(party_size, 'RETAIL') AS tier, COUNT(*) AS registered_parties FROM RegisteredPartiesExport GROUP BY registration_or_uptier_time, tier ORDER BY registration_or_uptier_time",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "RegisteredPartiesExport"
+    ],
+    "pred_tables": [
+      "RegisteredPartiesExport"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "Show the missingness and recall metrics for each resource",
+    "gold_sql": "SELECT resource_type, resource_id, name AS metric, value FROM ExportedMetadata WHERE name IN ('Missingness', 'ObservedRecallValues', 'ObservedRecallValuesPerTypology') ORDER BY resource_type, resource_id, metric",
+    "pred_sql": "SELECT resource_type, resource_id, name AS metric, value FROM ExportedMetadata WHERE name IN ('Missingness', 'ObservedRecallValues', 'ObservedRecallValuesPerTypology') ORDER BY resource_type, resource_id, metric",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "ExportedMetadata"
+    ],
+    "pred_tables": [
+      "ExportedMetadata"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  },
+  {
+    "question": "What percentage of alerts are adhoc or exploratory versus system generated?",
+    "gold_sql": "SELECT type AS alert_type, COUNT(*) AS alert_count, SAFE_DIVIDE(COUNT(*), SUM(COUNT(*)) OVER ()) AS pct_of_all_alerts FROM RiskCaseEvent WHERE type IN ('AML_ALERT_GOOGLE', 'AML_ALERT_LEGACY', 'AML_ALERT_ADHOC', 'AML_ALERT_EXPLORATORY', 'AML_ALERT_EXTERNAL') GROUP BY alert_type ORDER BY alert_count DESC",
+    "pred_sql": "SELECT type AS alert_type, COUNT(*) AS alert_count, SAFE_DIVIDE(COUNT(*), SUM(COUNT(*)) OVER ()) AS pct_of_all_alerts FROM RiskCaseEvent WHERE type IN ('AML_ALERT_GOOGLE', 'AML_ALERT_LEGACY', 'AML_ALERT_ADHOC', 'AML_ALERT_EXPLORATORY', 'AML_ALERT_EXTERNAL') GROUP BY alert_type ORDER BY alert_count DESC",
+    "source": "exemplar_retrieval",
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
+    "gold_tables": [
+      "RiskCaseEvent"
+    ],
+    "pred_tables": [
+      "RiskCaseEvent"
+    ],
+    "table_recall": 1.0,
+    "table_precision": 1.0,
+    "exact_match": true
+  }
+]

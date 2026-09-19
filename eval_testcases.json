@@ -9,11 +9,11 @@
   },
   {
     "question": "How many risk cases are currently open versus closed?",
-    "sql": "SELECT COUNTIF(ended_at IS NULL) AS open_cases, COUNTIF(ended_at IS NOT NULL) AS closed_cases, COUNT(*) AS total_cases FROM RiskCaseEvent"
+    "sql": "WITH case_status AS (SELECT risk_case_id, MAX(IF(type = 'AML_PROCESS_START', event_time, NULL)) AS started_at, MAX(IF(type = 'AML_PROCESS_END', event_time, NULL)) AS ended_at FROM RiskCaseEvent GROUP BY risk_case_id) SELECT COUNTIF(ended_at IS NULL) AS open_cases, COUNTIF(ended_at IS NOT NULL) AS closed_cases, COUNT(*) AS total_cases FROM case_status"
   },
   {
     "question": "What is the average resolution time in days for closed risk cases?",
-    "sql": "SELECT AVG(TIMESTAMP_DIFF(ended_at, started_at, HOUR)) / 24.0 AS avg_resolution_days FROM RiskCaseEvent"
+    "sql": "WITH case_status AS (SELECT risk_case_id, MIN(IF(type = 'AML_PROCESS_START', event_time, NULL)) AS started_at, MAX(IF(type = 'AML_PROCESS_END', event_time, NULL)) AS ended_at FROM RiskCaseEvent GROUP BY risk_case_id) SELECT AVG(TIMESTAMP_DIFF(ended_at, started_at, HOUR)) / 24.0 AS avg_resolution_days FROM case_status WHERE started_at IS NOT NULL AND ended_at IS NOT NULL"
   },
   {
     "question": "How many risk cases are there for each case type?",

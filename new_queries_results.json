@@ -128,7 +128,7 @@
   {
     "question": "How many commercial parties are registered as large?",
     "gold_sql": "SELECT COUNT(*) FROM CommercialPartiesRegistration WHERE party_size = 'LARGE'",
-    "pred_sql": "SELECT count(*) FROM CommercialPartiesRegistration WHERE party_size = \"LARGE\"",
+    "pred_sql": "SELECT count(*) FROM CommercialPartiesRegistration WHERE party_size = \"LARGE\" OR party_size = \"SMALL\";",
     "source": "model_generation",
     "corrections": [],
     "schema_valid": true,
@@ -182,11 +182,19 @@
   {
     "question": "How many parties are companies?",
     "gold_sql": "SELECT COUNT(*) FROM Party WHERE type = 'COMPANY'",
-    "pred_sql": "SELECT count(*) FROM Party AS T1 JOIN CommercialPartiesRegistration AS T2 ON T1.party_id = T2.party_id WHERE T1.type = \"Company\"",
+    "pred_sql": "SELECT count(*) FROM CommercialPartiesRegistration WHERE party_id NOT IN ( SELECTION DISTINCT party_id FROM Party );",
     "source": "model_generation",
-    "corrections": [],
-    "schema_valid": true,
-    "schema_violations": [],
+    "corrections": [
+      {
+        "kind": "column",
+        "from": "party_IID",
+        "to": "party_id"
+      }
+    ],
+    "schema_valid": false,
+    "schema_violations": [
+      "identifier 'SELECTION' does not match any table, alias, or column in scope"
+    ],
     "gold_tables": [
       "Party"
     ],

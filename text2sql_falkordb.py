@@ -186,7 +186,11 @@ def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
             haystack_tokens |= _tokenize(f["name"]) | _tokenize(f["description"])
         scores[name] = len(q_tokens & haystack_tokens)
 
-    ranked = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    # Tie-break alphabetically: FalkorDB doesn't guarantee row order without
+    # an ORDER BY, so without this, which tables land in the top_k on a score
+    # tie (and therefore what schema the model sees) varied nondeterministically
+    # between otherwise-identical runs.
+    ranked = sorted(scores.items(), key=lambda kv: (-kv[1], kv[0]))
     selected = {name for name, score in ranked[:top_k] if score > 0}
 
     if not selected:
@@ -211,26 +215,11 @@ def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
 # Schema serialization (Spider-style, as required by the model card)
 # ---------------------------------------------------------------------------
 
-_ENUM_TOKEN_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
-
-
-def extract_enum_hint(description):
-    """Pull literal enum values out of a field's KG description (e.g. "COMPANY
-    or CONSUMER", "CARD, CASH, CHECK, WIRE, OTHER, or CRYPTO") so the model
-    sees valid literals instead of guessing them. Only ALL_CAPS_WITH_UNDERSCORE
-    or short ALLCAPS words that appear in an enumerated list are picked up;
-    this is schema-strict since the values come verbatim from the KG's own
-    field.description text, nothing invented."""
-    if not description:
-        return []
-    caps = _ENUM_TOKEN_RE.findall(description)
-    # Also catch short plain all-caps words (COMPANY, CONSUMER, SMALL, LARGE)
-    # when they appear in an "X or Y" / "X, Y, or Z" list.
-    plain = re.findall(r"\b[A-Z]{3,}\b", description)
-    for word in plain:
-        if word not in caps and re.search(rf"({re.escape(word)}\s*,|\bor\s+{re.escape(word)}\b)", description):
-            caps.append(word)
-    return sorted(set(caps))
+# Canonical implementation lives in schema_validator.py (it also drives the
+# literal-value casing correction in validate_and_fix); reused here so the
+# schema-serialization hints shown to the model and the validator's notion
+# of "valid enum values" can never drift apart.
+extract_enum_hint = schema_validator.extract_enum_hint
 
 
 def format_table(table):

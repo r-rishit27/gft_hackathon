@@ -45,6 +45,56 @@ _ALIAS_DEF_RE = re.compile(
 )
 _QUALIFIED_COL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\.\s*([A-Za-z_][A-Za-z0-9_]*)\b")
 _BARE_IDENT_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
+_ENUM_TOKEN_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
+_LITERAL_COMPARISON_RE = re.compile(
+    r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s*=\s*('[^']*'|\"[^\"]*\")"
+)
+
+
+def extract_enum_hint(description):
+    """Pull literal enum values out of a field's schema description (e.g.
+    "COMPANY or CONSUMER", "CARD, CASH, CHECK, WIRE, OTHER, or CRYPTO") --
+    the canonical source both for the schema-serialization hints shown to the
+    model (text2sql_falkordb.format_table) and for correcting literal-value
+    casing here. Only ALL_CAPS_WITH_UNDERSCORE or short ALLCAPS words that
+    appear in an enumerated list are picked up; schema-strict since the
+    values come verbatim from the schema's own field.description text."""
+    if not description:
+        return []
+    caps = _ENUM_TOKEN_RE.findall(description)
+    plain = re.findall(r"\b[A-Z]{3,}\b", description)
+    for word in plain:
+        w = re.escape(word)
+        # Catches every position in an enumerated list: "X, Y, or Z" --
+        # "X," (leading), "or Z" (trailing), and "X or Y" (a bare two-item
+        # list, where X has no comma after it but IS followed by "or").
+        if word not in caps and re.search(rf"({w}\s*,|\bor\s+{w}\b|\b{w}\s+or\b)", description):
+            caps.append(word)
+    return sorted(set(caps))
+
+
+def build_enum_registry(schema=None):
+    """Returns {(table_name, field_name): [canonical enum values]} for every
+    field whose description enumerates literal values."""
+    schema = schema or load_schema()
+    enum_registry = {}
+    for section in ("input_data_model", "output_data_model"):
+        for table in schema[section]["tables"]:
+            for f in table["fields"]:
+                values = extract_enum_hint(f.get("description"))
+                if values:
+                    enum_registry[(table["name"], f["name"])] = values
+    return enum_registry
+
+
+_ENUM_REGISTRY = None
+
+
+def get_enum_registry():
+    global _ENUM_REGISTRY
+    if _ENUM_REGISTRY is None:
+        _ENUM_REGISTRY = build_enum_registry()
+    return _ENUM_REGISTRY
 
 
 def load_schema():
@@ -98,27 +148,37 @@ def _unmask_literals(sql, literals):
     return sql
 
 
-def validate_and_fix(sql, registry=None, table_cutoff=0.5, column_cutoff=0.6):
+def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, column_cutoff=0.6):
     """Validates + repairs `sql` against the canonical schema registry.
 
     Returns (fixed_sql, corrections, violations):
-      - corrections: list of {"kind": "table"|"column", "from": ..., "to": ...}
-        applied automatically via fuzzy matching.
+      - corrections: list of {"kind": "table"|"column"|"literal_value", "from": ..., "to": ...}
+        applied automatically via fuzzy/enum matching.
       - violations: list of identifiers that looked like a table/column
         reference but couldn't be confidently matched to anything in the
         schema (left unchanged in the SQL; surfaced so the caller can flag
         low-confidence results instead of silently shipping a guess).
     """
     registry = registry or get_registry()
+    enum_registry = enum_registry or get_enum_registry()
     all_tables = list(registry.keys())
 
     masked_sql, literals = _mask_literals(sql)
     corrections = []
     violations = []
 
+    # CTE names (WITH x AS (...), y AS (...)) are not schema tables -- they're
+    # query-local, and their column list is whatever the CTE's own SELECT
+    # defines (already covered by the "AS <alias>" defined_aliases scan
+    # below), so they're exempt from both table and bare-identifier checks.
+    cte_names = {m.group(1).lower() for m in re.finditer(r"\bWITH\s+([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(", masked_sql, re.IGNORECASE)}
+    cte_names |= {m.group(1).lower() for m in re.finditer(r"\)\s*,\s*([A-Za-z_][A-Za-z0-9_]*)\s+AS\s*\(", masked_sql, re.IGNORECASE)}
+
     # --- 1. Table names -----------------------------------------------
     def fix_table(match):
         keyword, name = match.group(1), match.group(2)
+        if name.lower() in cte_names:
+            return match.group(0)
         for t in all_tables:
             if t.lower() == name.lower():
                 return f"{keyword} {t}"
@@ -189,7 +249,7 @@ def validate_and_fix(sql, registry=None, table_cutoff=0.5, column_cutoff=0.6):
         if start > 0 and masked_sql[start - 1] == ".":
             return word  # already handled as a qualified column
         lw = word.lower()
-        if lw in SQL_KEYWORDS or lw in defined_aliases:
+        if lw in SQL_KEYWORDS or lw in defined_aliases or lw in cte_names:
             return word
         if any(t.lower() == lw for t in all_tables):
             return word
@@ -214,4 +274,43 @@ def validate_and_fix(sql, registry=None, table_cutoff=0.5, column_cutoff=0.6):
     masked_sql = _BARE_IDENT_RE.sub(fix_bare_ident, masked_sql)
 
     fixed_sql = _unmask_literals(masked_sql, literals)
+
+    # --- 5. Literal enum-value casing (e.g. "Company" -> "COMPANY") ---
+    # Only corrects casing/exact-token drift when the literal case-
+    # insensitively matches one of the field's known enum values (parsed
+    # from its schema description) -- never invents a value that isn't a
+    # documented enum member, and skips ambiguous bare-column references
+    # that match a same-named field in more than one table in the query.
+    def fix_literal(match):
+        col_ref, literal = match.group(1), match.group(2)
+        quote = literal[0]
+        value = literal[1:-1]
+
+        if "." in col_ref:
+            alias, field = col_ref.split(".", 1)
+            table = alias_to_table.get(alias.lower())
+        else:
+            field = col_ref
+            candidates = [t for t in tables_in_query if any(f.lower() == field.lower() for f in registry.get(t, set()))]
+            table = candidates[0] if len(candidates) == 1 else None
+
+        if not table:
+            return match.group(0)
+
+        canonical_field = next((f for f in registry.get(table, set()) if f.lower() == field.lower()), None)
+        if canonical_field is None:
+            return match.group(0)
+
+        enum_values = enum_registry.get((table, canonical_field))
+        if not enum_values:
+            return match.group(0)
+
+        canonical_value = next((v for v in enum_values if v.lower() == value.lower()), None)
+        if canonical_value and canonical_value != value:
+            corrections.append({"kind": "literal_value", "from": value, "to": canonical_value})
+            return f"{col_ref} = {quote}{canonical_value}{quote}"
+        return match.group(0)
+
+    fixed_sql = _LITERAL_COMPARISON_RE.sub(fix_literal, fixed_sql)
+
     return fixed_sql, corrections, violations

@@ -101,6 +101,65 @@ def get_enum_registry():
     return _ENUM_REGISTRY
 
 
+# Fields without a formal enum can still have observed_values showing a
+# small, "complete" set of distinct real values -- e.g. Party.occupation
+# isn't a documented enum, but every one of its 1140 observed rows is one of
+# exactly 5 job titles (unique_values_complete: true). MAX_DISTINCT bounds
+# this to genuinely small, enum-shaped fields; a field with hundreds of
+# "complete" distinct values (an ID column, say) isn't behaving like an
+# enum, it's just fully enumerated because the sample is small.
+SOFT_ENUM_MAX_DISTINCT = 20
+
+
+def build_soft_enum_registry(schema=None):
+    """Returns {(table_name, field_name): [observed values]} for STRING
+    fields with no formal enum but a small, complete observed value set.
+    Deliberately never used to flag a violation (see fix_literal) -- an
+    unmatched value might simply be a real one the observed sample never
+    happened to include, unlike a true enum which is a documented
+    constraint."""
+    schema = schema or load_schema()
+    registry = {}
+    for section in ("input_data_model", "output_data_model"):
+        for table in schema[section]["tables"]:
+            for f in table["fields"]:
+                if f.get("allowed_enum_values"):
+                    continue  # already a real enum; no need for a soft one
+                if f.get("type") != "STRING":
+                    continue
+                obs = f.get("observed_values") or {}
+                values = obs.get("unique_values")
+                if (
+                    obs.get("unique_values_complete")
+                    and isinstance(values, list)
+                    and 1 < len(values) <= SOFT_ENUM_MAX_DISTINCT
+                    and all(isinstance(v, str) for v in values)
+                ):
+                    registry[(table["name"], f["name"])] = list(values)
+    return registry
+
+
+_SOFT_ENUM_REGISTRY = None
+
+
+def get_soft_enum_registry():
+    global _SOFT_ENUM_REGISTRY
+    if _SOFT_ENUM_REGISTRY is None:
+        _SOFT_ENUM_REGISTRY = build_soft_enum_registry()
+    return _SOFT_ENUM_REGISTRY
+
+
+# High bar, and character-overlap only (no semantic component): tested and
+# rejected semantic matching here because "Doctor" scores 0.61 against
+# "Nurse" (both professions) -- close enough to pass almost any semantic
+# cutoff, which would wrongly force a legitimately new value into an
+# existing one. difflib ratio doesn't have that failure mode: real typos
+# share most of their characters with the target ("enginer" vs "engineer"
+# scores 0.93), while a genuinely different value doesn't ("doctor" scores
+# at most 0.32 against any of Party.occupation's 5 real values).
+SOFT_ENUM_FUZZY_CUTOFF = 0.8
+
+
 def build_field_descriptions(schema=None):
     """Returns {(table_name, field_name): description} across all nesting
     depths -- the gist text source for the semantic-repair fallback below.
@@ -416,7 +475,8 @@ def check_sql_syntax(sql):
     return issues
 
 
-def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, column_cutoff=0.6):
+def validate_and_fix(sql, registry=None, enum_registry=None, soft_enum_registry=None,
+                      table_cutoff=0.5, column_cutoff=0.6):
     """Validates + repairs `sql` against the canonical schema registry.
 
     Returns (fixed_sql, corrections, violations):
@@ -429,6 +489,7 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
     """
     registry = registry or get_registry()
     enum_registry = enum_registry or get_enum_registry()
+    soft_enum_registry = soft_enum_registry or get_soft_enum_registry()
     all_tables = list(registry.keys())
 
     masked_sql, literals = _mask_literals(sql)
@@ -657,6 +718,24 @@ def validate_and_fix(sql, registry=None, enum_registry=None, table_cutoff=0.5, c
 
         enum_values = enum_registry.get((table, canonical_field))
         if not enum_values:
+            # No formal enum -- try a soft one mined from observed_values
+            # (see build_soft_enum_registry). Character-overlap only, no
+            # semantic step, and never flags a violation on a miss: an
+            # unmatched value might be a real one the observed sample never
+            # happened to include, unlike a true documented enum.
+            soft_values = soft_enum_registry.get((table, canonical_field))
+            if not soft_values:
+                return match.group(0)
+            exact = next((v for v in soft_values if v.lower() == value.lower()), None)
+            if exact:
+                if exact != value:
+                    corrections.append({"kind": "literal_value", "stage": "soft", "from": value, "to": exact})
+                    return f"{col_ref} = {quote}{exact}{quote}"
+                return match.group(0)
+            close = _fuzzy_match_ci(value, soft_values, SOFT_ENUM_FUZZY_CUTOFF)
+            if close:
+                corrections.append({"kind": "literal_value", "stage": "soft_fuzzy", "from": value, "to": close})
+                return f"{col_ref} = {quote}{close}{quote}"
             return match.group(0)
 
         canonical_value = next((v for v in enum_values if v.lower() == value.lower()), None)

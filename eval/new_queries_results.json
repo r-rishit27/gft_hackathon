@@ -2,7 +2,7 @@
   {
     "question": "How many transactions were made by card?",
     "gold_sql": "SELECT COUNT(*) FROM Transaction WHERE type = 'CARD'",
-    "pred_sql": "SELECT count(*) FROM Transaction WHERE TYPE = \"CARD\"",
+    "pred_sql": "SELECT COUNT(*) AS total_transactions FROM Transaction t WHERE LOWER(t.type) = 'card';",
     "source": "model_generation",
     "corrections": [],
     "schema_valid": true,
@@ -20,19 +20,11 @@
   {
     "question": "List the account id and party id for every primary holder link",
     "gold_sql": "SELECT account_id, party_id FROM AccountPartyLink WHERE role = 'PRIMARY_HOLDER'",
-    "pred_sql": "SELECT account_id, party_id FROM AccountPartyLink WHERE primary_holder = \"PRIMARY_HOLDER\"",
+    "pred_sql": "SELECT ap.account_id, ap.party_id FROM AccountPartyLink ap WHERE ap.role = 'PRIMARY_HOLDER';",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "column",
-        "from": "party_ide",
-        "to": "party_id"
-      }
-    ],
-    "schema_valid": false,
-    "schema_violations": [
-      "identifier 'primary_holder' does not match any table, alias, or column in scope"
-    ],
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "AccountPartyLink"
     ],
@@ -46,16 +38,9 @@
   {
     "question": "How many interaction events were a password change?",
     "gold_sql": "SELECT COUNT(*) FROM InteractionEvent WHERE type = 'PASSWORD_CHANGE'",
-    "pred_sql": "SELECT count(*) FROM InteractionEvent WHERE TYPE = \"PASSWORD_CHANGE\"",
+    "pred_sql": "SELECT COUNT(*) FROM InteractionEvent ie WHERE LOWER(ie.type) = 'password_change';",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "table",
-        "stage": "kg_repair",
-        "from": "interaction_event",
-        "to": "InteractionEvent"
-      }
-    ],
+    "corrections": [],
     "schema_valid": true,
     "schema_violations": [],
     "gold_tables": [
@@ -71,70 +56,27 @@
   {
     "question": "What is the minimum and maximum risk score for each risk period?",
     "gold_sql": "SELECT risk_period_end_time, MIN(risk_score) AS min_score, MAX(risk_score) AS max_score FROM RiskScores GROUP BY risk_period_end_time",
-    "pred_sql": "SELECT min(risk_case_id), max(type-score), risk_case_id FROM RiskCaseEvent GROUP BY risk_case_id DESC LIMIT 1",
+    "pred_sql": "SELECT rs.risk_period_end_time, MIN(rs.risk_score) AS min_risk_score, MAX(rs.risk_score) AS max_risk_score FROM RiskScores rs GROUP BY rs.risk_period_end_time ORDER BY rs.risk_period_end_time NULLS LAST;",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "column",
-        "from": "risk_score",
-        "to": "risk_case_id"
-      },
-      {
-        "kind": "column",
-        "stage": "semantic",
-        "from": "risk",
-        "to": "type"
-      },
-      {
-        "kind": "column",
-        "from": "risk_period",
-        "to": "risk_case_id"
-      },
-      {
-        "kind": "column",
-        "stage": "semantic",
-        "from": "risk_previous_perior",
-        "to": "risk_case_id"
-      }
-    ],
-    "schema_valid": false,
-    "schema_violations": [
-      "identifier 'score' does not match any table, alias, or column in scope"
-    ],
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "RiskScores"
     ],
     "pred_tables": [
-      "RiskCaseEvent"
+      "RiskScores"
     ],
-    "table_recall": 0.0,
-    "table_precision": 0.0,
+    "table_recall": 1.0,
+    "table_precision": 1.0,
     "exact_match": false
   },
   {
     "question": "List the feature name and attribution value for each explainability record",
     "gold_sql": "SELECT party_id, attr.feature, attr.attribution FROM Explainability, UNNEST(attributions) AS attr",
-    "pred_sql": "SELECT feature, explainability-attribution FROM Explainability GROUP BY explainability.attributions",
+    "pred_sql": "SELECT e.party_id, e.attributions FROM Explainability e;",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "column",
-        "stage": "kg_repair_semantic",
-        "from": "feature_Name",
-        "to": "attributions"
-      },
-      {
-        "kind": "column",
-        "stage": "semantic",
-        "from": "explainability_feature_name",
-        "to": "feature"
-      },
-      {
-        "kind": "column",
-        "from": "attribution_value",
-        "to": "attribution"
-      }
-    ],
+    "corrections": [],
     "schema_valid": true,
     "schema_violations": [],
     "gold_tables": [
@@ -150,46 +92,25 @@
   {
     "question": "How many commercial parties are registered as large?",
     "gold_sql": "SELECT COUNT(*) FROM CommercialPartiesRegistration WHERE party_size = 'LARGE'",
-    "pred_sql": "SELECT count(*) FROM RetailPartiesRegistration WHERE party_id IN ( SELECTION T1.party_id FROM RetailPartiesRegistration AS T1 JOIN Party AS T2 ON T1.ip_address = T2.party_id WHERES T2.assets_value_range = \"large\") AND T1.is_entity_deleted = 'yes';",
+    "pred_sql": "SELECT COUNT(*) FROM CommercialPartiesRegistration cpr WHERE cpr.party_size = 'LARGE';",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "column",
-        "stage": "kg_repair",
-        "from": "parties_ip_address",
-        "to": "ip_address"
-      },
-      {
-        "kind": "column",
-        "from": "ip_address",
-        "to": "ip_address"
-      },
-      {
-        "kind": "column",
-        "from": "is_entity_deleted",
-        "to": "is_entity_deleted"
-      }
-    ],
-    "schema_valid": false,
-    "schema_violations": [
-      "identifier 'SELECTION' does not match any table, alias, or column in scope",
-      "identifier 'WHERES' does not match any table, alias, or column in scope"
-    ],
+    "corrections": [],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "CommercialPartiesRegistration"
     ],
     "pred_tables": [
-      "Party",
-      "RetailPartiesRegistration"
+      "CommercialPartiesRegistration"
     ],
-    "table_recall": 0.0,
-    "table_precision": 0.0,
+    "table_recall": 1.0,
+    "table_precision": 1.0,
     "exact_match": false
   },
   {
     "question": "How many retail parties are registered in total?",
     "gold_sql": "SELECT COUNT(*) FROM RetailPartiesRegistration",
-    "pred_sql": "SELECT count(*) FROM RetailPartiesRegistration",
+    "pred_sql": "SELECT COUNT(*) FROM RetailPartiesRegistration;",
     "source": "model_generation",
     "corrections": [],
     "schema_valid": true,
@@ -202,49 +123,34 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": true
+    "exact_match": false
   },
   {
     "question": "Show the resource id and value of the importance metric for each model",
     "gold_sql": "SELECT resource_id, value FROM ExportedMetadata WHERE resource_type = 'Model' AND name = 'Importance'",
-    "pred_sql": "SELECT T1.source_system, T1.value FROM Party AS T1 JOIN PartySupplementaryData AS T2 ON T1.party_id = T2.party_supplementary_data_id GROUP BY T1.source_system",
+    "pred_sql": "SELECT e.resource_id, e.value FROM ExportedMetadata e WHERE e.name = 'Importance';",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "column",
-        "stage": "kg_repair_semantic",
-        "from": "value_of_importance",
-        "to": "value"
-      },
-      {
-        "kind": "column",
-        "from": "value",
-        "to": "value"
-      }
-    ],
+    "corrections": [],
     "schema_valid": true,
     "schema_violations": [],
     "gold_tables": [
       "ExportedMetadata"
     ],
     "pred_tables": [
-      "Party",
-      "PartySupplementaryData"
+      "ExportedMetadata"
     ],
-    "table_recall": 0.0,
-    "table_precision": 0.0,
+    "table_recall": 1.0,
+    "table_precision": 1.0,
     "exact_match": false
   },
   {
     "question": "How many parties are companies?",
     "gold_sql": "SELECT COUNT(*) FROM Party WHERE type = 'COMPANY'",
-    "pred_sql": "SELECT count(*) FROM Party WHERE company = 'Company'",
+    "pred_sql": "SELECT COUNT(*) AS company_parties FROM Party p WHERE p.type = 'COMPANY';",
     "source": "model_generation",
     "corrections": [],
-    "schema_valid": false,
-    "schema_violations": [
-      "identifier 'company' does not match any table, alias, or column in scope"
-    ],
+    "schema_valid": true,
+    "schema_violations": [],
     "gold_tables": [
       "Party"
     ],
@@ -258,15 +164,9 @@
   {
     "question": "What is the earliest join date among all parties?",
     "gold_sql": "SELECT MIN(join_date) FROM Party",
-    "pred_sql": "SELECT join_date FROM Party ORDER BY join_date date ASC LIMIT 1",
+    "pred_sql": "SELECT MIN(p.join_date) AS earliest_join_date FROM Party p;",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "column",
-        "from": "join_",
-        "to": "join_date"
-      }
-    ],
+    "corrections": [],
     "schema_valid": true,
     "schema_violations": [],
     "gold_tables": [
@@ -282,7 +182,7 @@
   {
     "question": "How many risk case events are an AML exit?",
     "gold_sql": "SELECT COUNT(*) FROM RiskCaseEvent WHERE type = 'AML_EXIT'",
-    "pred_sql": "SELECT count(*) FROM Party AS party_id WHERE exit_date = \"AML\"",
+    "pred_sql": "SELECT COUNT(*) FROM RiskCaseEvent rce WHERE LOWER(rce.type) = 'aml_exit';",
     "source": "model_generation",
     "corrections": [],
     "schema_valid": true,
@@ -291,25 +191,18 @@
       "RiskCaseEvent"
     ],
     "pred_tables": [
-      "Party"
+      "RiskCaseEvent"
     ],
-    "table_recall": 0.0,
-    "table_precision": 0.0,
+    "table_recall": 1.0,
+    "table_precision": 1.0,
     "exact_match": false
   },
   {
     "question": "List the party id and supplementary data payload for every party supplementary data record",
     "gold_sql": "SELECT party_id, supplementary_data_payload FROM PartySupplementaryData",
-    "pred_sql": "SELECT party_id, supplementary_data_payload FROM PartySupplementaryData",
+    "pred_sql": "SELECT ps.party_id, ps.supplementary_data_payload FROM PartySupplementaryData ps;",
     "source": "model_generation",
-    "corrections": [
-      {
-        "kind": "table",
-        "stage": "kg_repair",
-        "from": "party_supplementary_Data",
-        "to": "PartySupplementaryData"
-      }
-    ],
+    "corrections": [],
     "schema_valid": true,
     "schema_violations": [],
     "gold_tables": [
@@ -320,6 +213,6 @@
     ],
     "table_recall": 1.0,
     "table_precision": 1.0,
-    "exact_match": true
+    "exact_match": false
   }
 ]

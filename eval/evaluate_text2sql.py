@@ -52,10 +52,17 @@ def tables_in(sql):
 
 
 def evaluate(model_path, testcases_path=TESTCASES_PATH, ground_tables=False):
-    from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+    # Only load T5 weights for the "t5" backend -- pipeline.generate_sql_kag
+    # ignores tokenizer/model entirely when MODEL_BACKEND=ollama, so loading
+    # them here would just waste ~5-10s per run and clutter the eval log with
+    # an unused model's weight-loading progress bar.
+    if pipeline.MODEL_BACKEND == "ollama":
+        tokenizer, model = pipeline.load_model()
+    else:
+        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path, token=pipeline.HF_TOKEN)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_path, token=pipeline.HF_TOKEN)
+        tokenizer = AutoTokenizer.from_pretrained(model_path, token=pipeline.HF_TOKEN)
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_path, token=pipeline.HF_TOKEN)
 
     with open(testcases_path, "r", encoding="utf-8") as f:
         cases = json.load(f)

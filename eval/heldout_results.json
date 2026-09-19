@@ -99,11 +99,14 @@
   {
     "question": "Break down the risk case count by type",
     "gold_sql": "SELECT type, COUNT(DISTINCT risk_case_id) AS case_count FROM RiskCaseEvent GROUP BY type ORDER BY case_count DESC",
-    "pred_sql": "SELECT count(*), type FROM RiskCaseEvent GROUP BY type",
+    "pred_sql": "SELECT TYPE, count(*) FROM RiskCaseEvent GROUP BY TYPICAL TYPOGRAPH",
     "source": "model_generation",
     "corrections": [],
-    "schema_valid": true,
-    "schema_violations": [],
+    "schema_valid": false,
+    "schema_violations": [
+      "identifier 'TYPICAL' does not match any table, alias, or column in scope",
+      "identifier 'TYPOGRAPH' does not match any table, alias, or column in scope"
+    ],
     "gold_tables": [
       "RiskCaseEvent"
     ],

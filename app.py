@@ -65,6 +65,14 @@ class QuestionRequest(BaseModel):
         description="Prepend a dynamic 'use only these exact table names' line. "
         "Evaluated but not measurably better than leaving it off for this model -- opt-in only.",
     )
+    retry_on_invalid: bool = Field(
+        False,
+        description="If the first attempt fails schema validation, widen retrieval and regenerate once "
+        "with the violations fed back into the prompt. Evaluated: correctly runs, but did not fix any "
+        "case in eval/eval_new_queries.json or eval/eval_heldout.json, while roughly doubling latency "
+        "for invalid answers -- opt-in only, may still help on real questions where the true table/"
+        "column fell outside the first attempt's retrieved subset.",
+    )
 
 
 class Correction(BaseModel):
@@ -87,6 +95,7 @@ class QuestionResponse(BaseModel):
     corrections: list[Correction]
     schema_valid: bool
     schema_violations: list[str]
+    retried: bool
     system_prompt: str | None
     model_input: str | None
 
@@ -100,6 +109,7 @@ def generate_sql(request: QuestionRequest):
             with_system_prompt=request.with_system_prompt,
             use_exemplars=request.use_exemplars,
             ground_tables=request.ground_tables,
+            retry_on_invalid=request.retry_on_invalid,
             tokenizer=model_state["tokenizer"],
             model=model_state["model"],
         )
@@ -116,6 +126,7 @@ def generate_sql(request: QuestionRequest):
         corrections=outcome["corrections"],
         schema_valid=outcome["schema_valid"],
         schema_violations=outcome["schema_violations"],
+        retried=outcome["retried"],
         system_prompt=pipeline.SYSTEM_PROMPT if request.with_system_prompt else None,
         model_input=outcome["model_input"],
     )

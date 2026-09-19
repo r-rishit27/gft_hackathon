@@ -46,40 +46,17 @@ _ALIAS_DEF_RE = re.compile(
 )
 _QUALIFIED_COL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\.\s*([A-Za-z_][A-Za-z0-9_]*)\b")
 _BARE_IDENT_RE = re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*\b")
-_ENUM_TOKEN_RE = re.compile(r"\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b")
 _LITERAL_COMPARISON_RE = re.compile(
     r"([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?)\s*=\s*('[^']*'|\"[^\"]*\")"
 )
 
 
-def extract_enum_hint(description):
-    """Pull literal enum values out of a field's schema description (e.g.
-    "COMPANY or CONSUMER", "CARD, CASH, CHECK, WIRE, OTHER, or CRYPTO") --
-    the canonical source both for the schema-serialization hints shown to the
-    model (text2sql_falkordb.format_table) and for correcting literal-value
-    casing here. Only ALL_CAPS_WITH_UNDERSCORE or short ALLCAPS words that
-    appear in an enumerated list are picked up; schema-strict since the
-    values come verbatim from the schema's own field.description text."""
-    if not description:
-        return []
-    caps = _ENUM_TOKEN_RE.findall(description)
-    plain = re.findall(r"\b[A-Z]{3,}\b", description)
-    for word in plain:
-        w = re.escape(word)
-        # Catches every position in an enumerated list: "X, Y, or Z" --
-        # "X," (leading), "or Z" (trailing), and "X or Y" (a bare two-item
-        # list, where X has no comma after it but IS followed by "or").
-        if word not in caps and re.search(rf"({w}\s*,|\bor\s+{w}\b|\b{w}\s+or\b)", description):
-            caps.append(word)
-    return sorted(set(caps))
-
-
 def build_enum_registry(schema=None):
     """Returns {(table_name, field_name): [canonical enum values]} for every
-    top-level field with known enum values. Prefers the schema's own explicit
+    top-level field with known enum values, from the schema's own explicit
     `allowed_enum_values` (authoritative, machine-generated from observed
-    data) and falls back to regex-parsing the description for older schema
-    snapshots that don't carry it.
+    data -- always present for this schema, so no regex-guessing fallback;
+    see the comment inline below for why that was actively wrong here).
 
     Deliberately top-level only: literal-casing correction only ever needs
     to resolve a bare column name actually referenced in generated SQL
@@ -100,9 +77,15 @@ def build_enum_registry(schema=None):
                 # carry [false, true] as Python bools) -- only string enums
                 # are relevant here since we're matching against quoted SQL
                 # literals, and a bool would crash the later .lower() call.
+                # No regex fallback onto the description: allowed_enum_values
+                # is always authoritative for this schema (present as a list
+                # or explicitly null -- "confirmed no enum", not "unknown"),
+                # and several fields with genuinely no enum mention a
+                # *different* field's enum in cross-referencing prose (e.g.
+                # Party.birth_date's description says "...where Party.type =
+                # CONSUMER..."), which the regex extractor picked up as if it
+                # were the field's own enum.
                 values = [v for v in (f.get("allowed_enum_values") or []) if isinstance(v, str)]
-                if not values:
-                    values = extract_enum_hint(f.get("description"))
                 if values:
                     enum_registry[(table["name"], f["name"])] = list(values)
     return enum_registry
@@ -181,9 +164,9 @@ def build_table_gists(schema=None):
         for table in schema[section]["tables"]:
             field_parts = []
             for f in table["fields"]:
+                # No regex fallback here either -- see build_enum_registry's
+                # comment for why that's wrong for this schema.
                 vals = [v for v in (f.get("allowed_enum_values") or []) if isinstance(v, str)]
-                if not vals:
-                    vals = extract_enum_hint(f.get("description"))
                 field_parts.append(f'{f["name"]} ({" ".join(vals)})' if vals else f["name"])
             desc = _clean_description(table.get("description", ""))
             gists[table["name"]] = f'{desc}. Fields: {" ".join(field_parts)}'

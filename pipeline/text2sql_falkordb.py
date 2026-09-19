@@ -218,17 +218,20 @@ TABLE_SEMANTIC_WEIGHT = 0.6
 
 
 def _field_enum_values(f):
-    """Same enum-value resolution as format_table(): prefer the schema's
-    authoritative allowed_enum_values, fall back to regex-extraction from
-    the description. Used here so identifier-like enum tokens (e.g.
+    """The schema's authoritative allowed_enum_values only -- no regex
+    fallback onto the description. That fallback used to catch older schema
+    snapshots without this field computed, but for the current schema it's
+    actively wrong: allowed_enum_values is always present (a list, or
+    explicitly null/empty meaning "confirmed no enum"), and several fields
+    with genuinely no enum (e.g. Party.birth_date) mention a *different*
+    field's enum values in cross-referencing prose ("...where Party.type =
+    CONSUMER..."), which the regex extractor picked up as if they were
+    birth_date's own enum. Used here so identifier-like enum tokens (e.g.
     AML_SAR, PASSWORD_CHANGE) are searchable -- a question mentioning "SAR"
     has zero overlap with any table/field *name*, but everything to do with
     RiskCaseEvent.type's enum values, which the first-sentence-trimmed
     description no longer carries verbatim."""
-    values = [v for v in f.get("allowed_enum_values") or [] if isinstance(v, str)]
-    if not values:
-        values = extract_enum_hint(f.get("description"))
-    return values
+    return [v for v in f.get("allowed_enum_values") or [] if isinstance(v, str)]
 
 
 def _table_gist(name, t):
@@ -351,13 +354,6 @@ def _prune_fields(t, q_tokens):
 # Schema serialization (Spider-style, as required by the model card)
 # ---------------------------------------------------------------------------
 
-# Canonical implementation lives in schema_validator.py (it also drives the
-# literal-value casing correction in validate_and_fix); reused here so the
-# schema-serialization hints shown to the model and the validator's notion
-# of "valid enum values" can never drift apart.
-extract_enum_hint = schema_validator.extract_enum_hint
-
-
 MAX_INLINE_ENUM_VALUES = 6  # keeps schema-string length in the range the
                              # model was fine-tuned on; some fields (e.g.
                              # education_level_code) now carry 11 authoritative
@@ -371,13 +367,7 @@ def format_table(table):
     col_parts = []
     for f in table["fields"]:
         col_str = f'"{f["name"]}" {sql_type(f["type"])}'
-        # Prefer the schema's explicit allowed_enum_values (authoritative,
-        # graph-provided) over regex-guessing from the description; only
-        # string values matter here (a BOOL field's allowed_enum_values is
-        # [false, true], not a literal hint worth showing).
-        enum_values = [v for v in f.get("allowed_enum_values") or [] if isinstance(v, str)]
-        if not enum_values:
-            enum_values = extract_enum_hint(f.get("description"))
+        enum_values = _field_enum_values(f)
         if enum_values:
             shown = enum_values[:MAX_INLINE_ENUM_VALUES]
             more = len(enum_values) - len(shown)
@@ -400,7 +390,7 @@ def build_schema_string(tables):
 # Prompt assembly + inference
 # ---------------------------------------------------------------------------
 
-def build_model_input(question, schema_string, with_system_prompt=False, ground_tables=None):
+def build_model_input(question, schema_string, with_system_prompt=False, ground_tables=None, feedback=None):
     prefix_parts = []
     if with_system_prompt:
         prefix_parts.append(SYSTEM_PROMPT)
@@ -411,6 +401,14 @@ def build_model_input(question, schema_string, with_system_prompt=False, ground_
         # against the plain prompt in evaluate_text2sql.py rather than
         # assumed to help (see grounding_ablation.json).
         prefix_parts.append(f"Use only these exact table names: {', '.join(ground_tables)}.")
+    if feedback:
+        # Self-correction retry line: this checkpoint isn't instruction-
+        # following (it's fine-tuned strictly on "Question: ... Schema: ...",
+        # like ground_tables above), so this is deliberately short and
+        # plain rather than a full natural-language explanation -- more
+        # verbiage is more likely to push the input further off the
+        # template it was trained on, not less.
+        prefix_parts.append(f"Previous attempt was invalid: {feedback}")
     prefix = " ".join(prefix_parts)
     if prefix:
         return " ".join([prefix, "Question: ", question, "Schema:", schema_string])
@@ -643,8 +641,35 @@ def repair_column_names(sql, tables, cutoff=0.6, semantic_cutoff=COLUMN_SEMANTIC
 # schema-grounded repair. Used by both the FastAPI app and the CLI.
 # ---------------------------------------------------------------------------
 
+def _summarize_violations(violations, max_items=3):
+    """Short, plain feedback line for the self-correction retry -- not a
+    full explanation (see build_model_input's feedback docstring for why
+    this stays terse rather than verbose)."""
+    shown = violations[:max_items]
+    text = "; ".join(shown)
+    if len(violations) > max_items:
+        text += f"; and {len(violations) - max_items} more issue(s)"
+    return text
+
+
+def _attempt_generation(question, tables, schema_string, with_system_prompt, ground_tables,
+                         tokenizer, model, feedback=None):
+    """One generate-repair-validate pass. Returns (sql, corrections, violations, model_input)."""
+    model_input = build_model_input(
+        question, schema_string, with_system_prompt=with_system_prompt,
+        ground_tables=list(tables.keys()) if ground_tables else None,
+        feedback=feedback,
+    )
+    raw_sql = generate_sql(tokenizer, model, model_input)
+    table_repaired_sql, table_corrections = repair_table_names(raw_sql, tables)
+    kg_repaired_sql, column_corrections = repair_column_names(table_repaired_sql, tables)
+    validated_sql, schema_corrections, violations = schema_validator.validate_and_fix(kg_repaired_sql)
+    corrections = table_corrections + column_corrections + schema_corrections
+    return validated_sql, corrections, violations, model_input
+
+
 def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=True,
-                      ground_tables=False, tokenizer=None, model=None):
+                      ground_tables=False, retry_on_invalid=False, tokenizer=None, model=None):
     graph = connect_graph()
     tables = retrieve_relevant_tables(graph, question, top_k=top_k)
     schema_string = build_schema_string(tables)
@@ -666,24 +691,42 @@ def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=
             "schema_valid": not violations,
             "schema_violations": violations,
             "model_input": None,
+            "retried": False,
         }
 
-    model_input = build_model_input(
-        question, schema_string, with_system_prompt=with_system_prompt,
-        ground_tables=list(tables.keys()) if ground_tables else None,
-    )
     if tokenizer is None or model is None:
         tokenizer, model = load_model()
-    raw_sql = generate_sql(tokenizer, model, model_input)
-    table_repaired_sql, table_corrections = repair_table_names(raw_sql, tables)
-    kg_repaired_sql, column_corrections = repair_column_names(table_repaired_sql, tables)
 
-    # Final gate: re-check against the full canonical schema (not just the
-    # KG-retrieved subset), so a correct table/column outside retrieval's
-    # top_k can still be recovered, and anything the KG-scoped repair missed
-    # gets one more independent pass before the query reaches the user.
-    validated_sql, schema_corrections, violations = schema_validator.validate_and_fix(kg_repaired_sql)
-    corrections = table_corrections + column_corrections + schema_corrections
+    validated_sql, corrections, violations, model_input = _attempt_generation(
+        question, tables, schema_string, with_system_prompt, ground_tables, tokenizer, model
+    )
+
+    retried = False
+    if violations and retry_on_invalid:
+        # Self-correction retry: widen retrieval (the real table/column may
+        # have fallen outside the first attempt's top_k) and feed the
+        # specific violations back into the input, then regenerate once.
+        # Only ever one retry -- this is a bounded safety net, not a loop
+        # that could compound latency or drift further off-template with
+        # each pass.
+        retry_top_k = min(top_k * 2, 12)  # 12 == the whole schema right now
+        retry_tables = retrieve_relevant_tables(graph, question, top_k=retry_top_k)
+        retry_schema_string = build_schema_string(retry_tables)
+        feedback = _summarize_violations(violations)
+
+        retry_sql, retry_corrections, retry_violations, retry_model_input = _attempt_generation(
+            question, retry_tables, retry_schema_string, with_system_prompt, ground_tables,
+            tokenizer, model, feedback=feedback,
+        )
+        retried = True
+
+        # Keep whichever attempt is actually better -- fewer unresolved
+        # violations wins; a tie keeps the first attempt (no reason to
+        # prefer a different-but-equally-uncertain answer).
+        if len(retry_violations) < len(violations):
+            tables = retry_tables
+            validated_sql, corrections, violations = retry_sql, retry_corrections, retry_violations
+            model_input = retry_model_input
 
     return {
         "question": question,
@@ -696,6 +739,7 @@ def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=
         "schema_valid": not violations,
         "schema_violations": violations,
         "model_input": model_input,
+        "retried": retried,
     }
 
 

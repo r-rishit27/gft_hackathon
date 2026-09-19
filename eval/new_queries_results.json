@@ -71,7 +71,7 @@
   {
     "question": "What is the minimum and maximum risk score for each risk period?",
     "gold_sql": "SELECT risk_period_end_time, MIN(risk_score) AS min_score, MAX(risk_score) AS max_score FROM RiskScores GROUP BY risk_period_end_time",
-    "pred_sql": "SELECT min(risk_case_id), max(type-score), risk_case_event_id FROM RiskCaseEvent GROUP BY risk_case_id",
+    "pred_sql": "SELECT min(risk_case_id), max(type-score), risk_case_id FROM RiskCaseEvent GROUP BY risk_case_id DESC LIMIT 1",
     "source": "model_generation",
     "corrections": [
       {
@@ -87,13 +87,13 @@
       },
       {
         "kind": "column",
-        "from": "risk_period_end",
-        "to": "risk_case_event_id"
+        "from": "risk_period",
+        "to": "risk_case_id"
       },
       {
         "kind": "column",
         "stage": "semantic",
-        "from": "risk_previous_perior_end",
+        "from": "risk_previous_perior",
         "to": "risk_case_id"
       }
     ],
@@ -114,9 +114,15 @@
   {
     "question": "List the feature name and attribution value for each explainability record",
     "gold_sql": "SELECT party_id, attr.feature, attr.attribution FROM Explainability, UNNEST(attributions) AS attr",
-    "pred_sql": "SELECT feature, explainability-attribution FROM Explainability",
+    "pred_sql": "SELECT feature, explainability-attribution FROM Explainability GROUP BY explainability.attributions",
     "source": "model_generation",
     "corrections": [
+      {
+        "kind": "column",
+        "stage": "kg_repair_semantic",
+        "from": "feature_Name",
+        "to": "attributions"
+      },
       {
         "kind": "column",
         "stage": "semantic",
@@ -144,19 +150,37 @@
   {
     "question": "How many commercial parties are registered as large?",
     "gold_sql": "SELECT COUNT(*) FROM CommercialPartiesRegistration WHERE party_size = 'LARGE'",
-    "pred_sql": "SELECT count(*) FROM Party WHERE company = \"COMPANY\" AND is_entity_deleted = \"NOT\";",
+    "pred_sql": "SELECT count(*) FROM RetailPartiesRegistration WHERE party_id IN ( SELECTION T1.party_id FROM RetailPartiesRegistration AS T1 JOIN Party AS T2 ON T1.ip_address = T2.party_id WHERES T2.assets_value_range = \"large\") AND T1.is_entity_deleted = 'yes';",
     "source": "model_generation",
-    "corrections": [],
+    "corrections": [
+      {
+        "kind": "column",
+        "stage": "kg_repair",
+        "from": "parties_ip_address",
+        "to": "ip_address"
+      },
+      {
+        "kind": "column",
+        "from": "ip_address",
+        "to": "ip_address"
+      },
+      {
+        "kind": "column",
+        "from": "is_entity_deleted",
+        "to": "is_entity_deleted"
+      }
+    ],
     "schema_valid": false,
     "schema_violations": [
-      "identifier 'company' does not match any table, alias, or column in scope",
-      "literal \"NOT\" is not a valid value for Party.is_entity_deleted; expected one of: TRUE"
+      "identifier 'SELECTION' does not match any table, alias, or column in scope",
+      "identifier 'WHERES' does not match any table, alias, or column in scope"
     ],
     "gold_tables": [
       "CommercialPartiesRegistration"
     ],
     "pred_tables": [
-      "Party"
+      "Party",
+      "RetailPartiesRegistration"
     ],
     "table_recall": 0.0,
     "table_precision": 0.0,
@@ -183,13 +207,18 @@
   {
     "question": "Show the resource id and value of the importance metric for each model",
     "gold_sql": "SELECT resource_id, value FROM ExportedMetadata WHERE resource_type = 'Model' AND name = 'Importance'",
-    "pred_sql": "SELECT T1.source_system, T1.value FROM PartySupplementaryData AS T1 JOIN RiskCaseEvent AS T2 ON T1.party_id = T2.party_id GROUP BY T1.source_system",
+    "pred_sql": "SELECT T1.source_system, T1.value FROM Party AS T1 JOIN PartySupplementaryData AS T2 ON T1.party_id = T2.party_supplementary_data_id GROUP BY T1.source_system",
     "source": "model_generation",
     "corrections": [
       {
         "kind": "column",
         "stage": "kg_repair_semantic",
-        "from": "values_importance_metric",
+        "from": "value_of_importance",
+        "to": "value"
+      },
+      {
+        "kind": "column",
+        "from": "value",
         "to": "value"
       }
     ],
@@ -199,8 +228,8 @@
       "ExportedMetadata"
     ],
     "pred_tables": [
-      "PartySupplementaryData",
-      "RiskCaseEvent"
+      "Party",
+      "PartySupplementaryData"
     ],
     "table_recall": 0.0,
     "table_precision": 0.0,

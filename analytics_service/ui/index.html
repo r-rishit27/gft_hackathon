@@ -12,7 +12,7 @@
   <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">A</span> AML Analytics</div><span class="badge">SYNTHETIC DATA</span></header>
   <main>
     <section class="heading"><div><p class="eyebrow">INVESTIGATION INTELLIGENCE</p><h1>AML Analytics</h1></div><div class="connection"><span id="status">Not connected</span><span id="scope"></span></div></section>
-    <form id="access-form" class="access"><label for="token">Access token</label><input id="token" type="password" autocomplete="off" required maxlength="512"><button type="submit">Connect</button><button id="disconnect" type="button" hidden>Disconnect</button></form>
+    <form id="access-form" class="access"><label for="token">Access token</label><input id="token" type="password" autocomplete="off" required maxlength="512"><button type="submit">Connect</button><button id="open-access" type="button">Open access file</button><input id="access-file" type="file" accept="application/json,.json" hidden><button id="disconnect" type="button" hidden>Disconnect</button></form>
     <form id="query-form" class="query-form">
       <div class="question"><label for="question">Ask your dataset</label><textarea id="question" rows="3" autocomplete="off" maxlength="2000" placeholder="How did monthly transaction amounts change by direction during 2026?" required disabled></textarea></div>
       <button id="run" type="submit" disabled>Run query</button>

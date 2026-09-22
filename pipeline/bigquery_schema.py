@@ -11,9 +11,21 @@ def normalize_date_trunc(sql):
         if len(statements) != 1 or not isinstance(statements[0], (exp.Select, exp.Union)):
             return sql, []
         tree = statements[0]
+        postgres_dates = {}
+        try:
+            alternate = sqlglot.parse_one(sql, read="postgres")
+            postgres_dates = {n.meta.get("start"): n for n in alternate.find_all(exp.TimestampTrunc)}
+        except (sqlglot.errors.SqlglotError, ValueError, RecursionError):
+            pass
         corrections = []
         for node in tree.find_all(exp.DateTrunc):
             first, second = node.this, node.args.get("unit")
+            # GoogleSQL parses an unqualified date-part argument as a literal.
+            # Recover its original expression using the Postgres AST, not by
+            # guessing whether a string happens to look like a column name.
+            original = postgres_dates.get(node.meta.get("start"))
+            if isinstance(second, exp.Literal) and original is not None:
+                second = original.this
             if isinstance(first, exp.Literal) and first.is_string and first.this.upper() in {
                 "DAY", "WEEK", "MONTH", "QUARTER", "YEAR", "HOUR", "MINUTE", "SECOND"
             } and isinstance(second, (exp.Column, exp.Cast, exp.Date, exp.Timestamp)):

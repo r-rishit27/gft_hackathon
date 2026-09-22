@@ -1,6 +1,26 @@
 # Analytics Verification
 
-**Current checkpoint:** see [Live Integration Checkpoint: 2026-09-22](#live-integration-checkpoint-2026-09-22) below. The following September 19 results describe the previous reviewed-KPI fixture implementation, not the new live integration.
+**Current status, 2026-09-22:** explicit GCP approval received and applied. The real local application runs at `http://127.0.0.1:8012/ui/`; it is connected to BigQuery through authorized views and the requested local Ollama model. No public deployment or billing activation was performed.
+
+## Connected Verification
+
+- Created twelve `aml_analytics_demo` views, excluding configured contact fields, and `aml-analytics-demo` service account. Granted project Job User, view-dataset READER, and signed-in-user Token Creator on that account only. Enabled required IAM, IAM Credentials and Cloud Resource Manager APIs. Source tables and rows were not replaced.
+- Corrected ADC quota-project header to the verified numeric project ID `1076784773678`. OpenID identity checks omit a Cloud quota header. API/IAM propagation caused transient failures; final readiness reports both model and all twelve views ready.
+- Using the actual execution identity: `testIamPermissions` on the Transaction view returned only `bigquery.tables.getData`, not update/updateData/delete. Direct base-table dry-run access was denied.
+- Live question: "Show transaction count grouped by direction, with one row per direction." Result: CREDIT 13,035; DEBIT 36,965. Initial browser job `aml_70df9f76e0bd4e1cba4d6c5fa17a1863`; post-retrieval-change job `aml_c15df55159724b758ae7b4007245bb11` agreed.
+- Live monthly distinct SAR case counts: February 8, March 8, April 8, May 7, June 14. Job `aml_2e00039b68c0455f85be1da4f0b1fb3b`. No rows were fabricated for months absent from the result.
+- Independent reviewed SAR query matched all five monthly counts: job `aml_c4451afbbe724b968cb4e3423a6af645`.
+- Latest targeted check returned 1,000 distinct customer IDs: job `aml_3d9cf642d2224476b60aada55173bbc8`. The unsafe active-customer aggregate now returns HTTP 422 `historical_ambiguity`, with no execution. A monthly monetary question still produced SQL that BigQuery rejected; it returns HTTP 422 `invalid_google_sql`, not fabricated results or a misleading connectivity error.
+- Authenticated the actual Codex browser via the private local access file. Live chart/table inspected at desktop and mobile sizes with no horizontal overflow. Restored the user's browser size afterward. Browser automation could not expose canvas pixel buffers; visual chart verification was used, not an asserted pixel count.
+- Unit/regression suite after fixes: 108 passed, six opt-in tests skipped in that run, two dependency deprecation warnings.
+
+### Model Accuracy Remains Incomplete
+
+The separate initial live six-KPI gold-comparison run had **six failures**: nested-field alias validation, a wrong-table SAR query rejected by BigQuery, three output-contract/meaning differences, and an active-customer answer of 0 versus gold 960. A later active-customer generation counted 1,100 historical rows instead of 960 latest active customers. Do not treat HTTP 200 or schema validity as proof of correct business meaning.
+
+Subsequent fixes resolve nested fields before alias canonicalization, focus schema retrieval, normalize a narrowly recognized DATE_TRUNC dialect difference using ASTs, clarify lifecycle semantics, and reject ambiguous historical Party aggregates. Targeted live retests succeeded for direction counts and SAR cases. The full six-KPI accuracy suite has not been declared passing; keep PR #3 draft pending that acceptance work.
+
+The earlier September 19 and pre-approval checkpoints below are retained as historical records, not current connectivity claims.
 
 ## Archived Results - 2026-09-19
 

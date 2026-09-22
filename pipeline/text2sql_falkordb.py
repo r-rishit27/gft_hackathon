@@ -223,6 +223,45 @@ def fetch_catalog_tables():
     }
 
 
+def retrieve_catalog_tables(question, tables):
+    """Rank schema metadata, not canned questions or cached SQL answers."""
+    topics = {
+        "Party": "customer customers party parties active attrition joined exited",
+        "Transaction": "transaction transactions payment payments transfer transfers credit debit volume amount",
+        "AccountPartyLink": "account accounts owner ownership",
+        "RiskCaseEvent": "case cases sar sars filing filings filed alert alerts investigation investigations backlog",
+        "RiskScores": "score scores scoring",
+        "Explainability": "explainability explanation explanations attribution attributions reasons",
+        "InteractionEvent": "interaction interactions login logins atm session sessions",
+        "PartySupplementaryData": "supplementary kyc",
+        "RetailPartiesRegistration": "retail registration registrations",
+        "CommercialPartiesRegistration": "commercial registration registrations",
+        "RegisteredPartiesExport": "registered export registration",
+        "ExportedMetadata": "metadata quality precision recall performance",
+    }
+    stop = _tokenize("a an the of in on at to by for with from and or how many show what each per were was is are had has have their there all end month monthly year period reporting")
+    tokens = _tokenize(question) - stop
+    scores = {}
+    for name, table in tables.items():
+        names = _tokenize(name)
+        descriptions = _tokenize(table.get("description", ""))
+        for field in table["fields"]:
+            names |= _tokenize(field["name"])
+            descriptions |= _tokenize(field.get("description") or "")
+            for value in _field_enum_values(field):
+                names |= _tokenize(value)
+        scores[name] = (8 * len(tokens & _tokenize(topics.get(name, "")))
+                        + 2 * len(tokens & names) + len(tokens & (descriptions - names)))
+    best = max(scores.values(), default=0)
+    if not best:
+        return tables
+    ranked = sorted(scores, key=lambda name: (-scores[name], name))
+    selected = {name for name in ranked[:3] if scores[name] >= best * 0.65}
+    if {"Party", "Transaction"} <= selected and "AccountPartyLink" in tables:
+        selected.add("AccountPartyLink")
+    return {name: tables[name] for name in ranked if name in selected}
+
+
 _NAME_MATCH_WEIGHT = 2  # a table/field NAME matching the question is a much
                          # stronger intent signal than a description word
                          # incidentally matching, so it counts for more.
@@ -468,6 +507,8 @@ def build_sqlcoder_input(question, tables, ground_tables=None, feedback=None):
         "- DATE_TRUNC(DATE(timestamp_column), MONTH) groups months; use COUNTIF and SAFE_DIVIDE when needed.",
         "- Monetary normalized_booked_amount is a STRUCT. Sum CAST(units AS NUMERIC) + CAST(nanos AS NUMERIC) / 1000000000, currency USD. Always qualify units and nanos with normalized_booked_amount.",
         "- Party has historical versions. For current customers use ROW_NUMBER() OVER (PARTITION BY party_id ORDER BY validity_start_time DESC) and keep row 1 before joining.",
+        "- Active customers at end of August 2026: select latest Party version before TIMESTAMP('2026-09-01'), keep row_num=1, COALESCE(is_entity_deleted,FALSE)=FALSE, join_date < DATE('2026-09-01'), and (exit_date IS NULL OR exit_date >= DATE('2026-09-01')). NULL exit_date means still active, not inactive.",
+        "- Investigation case status: per risk_case_id, find latest AML_PROCESS_START event and latest AML_PROCESS_END event. Open means started and no end, or start newer than end; closed means end >= start. For a backlog summary return counts, not raw events.",
         "- Latest available data is August 2026. Latest risk scores use MAX(risk_period_end_time), not CURRENT_DATE().",
         "- Customer country/entity is the party_id/account_id prefix: HASE_HK, HSBC_GB, HSBC_IN, HSBC_TW, HSBC_FR, HSBC_PL, HSBC_IE. Do not use counterparty country for customer country.",
         "- Country names map EXACTLY: Hong Kong=HASE_HK_, UK/Britain=HSBC_GB_, India=HSBC_IN_, Taiwan=HSBC_TW_, France=HSBC_FR_, Poland=HSBC_PL_, Ireland=HSBC_IE_.",
@@ -798,6 +839,7 @@ def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=
         for name, table in tables.items():
             if allowed_columns is not None:
                 table["fields"] = [f for f in table["fields"] if f["name"] in allowed_columns[name]]
+        tables = retrieve_catalog_tables(question, tables)
         model_input = build_sqlcoder_input(question, tables, ground_tables=list(tables))
         sql = generate_sql_ollama(model_input, system=SYSTEM_PROMPT)
         from pipeline.bigquery_schema import normalize_date_trunc, validate_candidate

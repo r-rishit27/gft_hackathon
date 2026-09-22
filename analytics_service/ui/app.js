@@ -29,6 +29,22 @@ function clearResults() {
   $("results").hidden = true;
   $("empty").hidden = false;
 }
+$("open-access").addEventListener("click", () => $("access-file").click());
+$("access-file").addEventListener("change", async () => {
+  try {
+    const file = $("access-file").files[0];
+    if (!file) return;
+    if (file.size > 4096) throw new Error("Invalid access file.");
+    const value = JSON.parse(await file.text()).access_token;
+    if (typeof value !== "string" || value.length < 24 || value.length > 512) throw new Error("Invalid access file.");
+    $("token").value = value;
+    $("access-form").requestSubmit();
+  } catch (_) {
+    $("message").textContent = "Choose the local access-token.local.json file.";
+  } finally {
+    $("access-file").value = "";
+  }
+});
 $("access-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   generation += 1;

@@ -50,10 +50,25 @@ def inspect(client):
 
 
 def request(session, method, url, **kwargs):
-    response = session.request(method, url, timeout=60, **kwargs)
+    # API activation is eventually consistent. Retry only explicit disabled-API
+    # responses, never permission denials or ambiguous successful mutations.
+    for delay in (5, 10, 20, 0):
+        response = session.request(method, url, timeout=60, **kwargs)
+        try:
+            details = response.json().get("error", {}).get("details", [])
+        except ValueError:
+            details = []
+        if delay and response.status_code == 403 and any(d.get("reason") == "SERVICE_DISABLED" for d in details):
+            time.sleep(delay)
+            continue
+        break
     if not response.ok:
-        # API status only: avoid echoing credential-bearing request/response objects.
-        raise RuntimeError(f"Cloud setup request failed: HTTP {response.status_code} at {url.split('?')[0]}")
+        # Only the API error message, never credential-bearing request objects.
+        try:
+            message = response.json().get("error", {}).get("message", "")
+        except ValueError:
+            message = ""
+        raise RuntimeError(f"Cloud setup request failed: HTTP {response.status_code} at {url.split('?')[0]}: {message}")
     return response.json() if response.content else {}
 
 
@@ -94,21 +109,24 @@ def main():
     if config_path.exists() or token_path.exists():
         raise RuntimeError("Local configuration already exists; preserve it and review instead of overwriting")
     session = AuthorizedSession(credentials)
-    identity = request(session, "GET", "https://www.googleapis.com/oauth2/v3/userinfo")
+    # OpenID identity lookup is not a Cloud resource/quota request.
+    with AuthorizedSession(credentials.with_quota_project(None)) as identity_session:
+        identity = request(identity_session, "GET", "https://openidconnect.googleapis.com/v1/userinfo")
     if not identity.get("email_verified") or not identity.get("email"):
         raise RuntimeError("A verified Google user identity is required")
-    api = f"https://serviceusage.googleapis.com/v1/projects/{PROJECT}/services/iamcredentials.googleapis.com"
-    if request(session, "GET", api).get("state") != "ENABLED":
-        operation = request(session, "POST", api + ":enable", json={})
-        for _ in range(60):
-            state = request(session, "GET", "https://serviceusage.googleapis.com/v1/" + operation["name"])
-            if state.get("done"):
-                if state.get("error"):
-                    raise RuntimeError("IAM credentials API could not be enabled")
-                break
-            time.sleep(2)
-        else:
-            raise RuntimeError("IAM credentials API enablement timed out")
+    for service in ("iam.googleapis.com", "iamcredentials.googleapis.com", "cloudresourcemanager.googleapis.com"):
+        api = f"https://serviceusage.googleapis.com/v1/projects/{PROJECT}/services/{service}"
+        if request(session, "GET", api).get("state") != "ENABLED":
+            operation = request(session, "POST", api + ":enable", json={})
+            for _ in range(60):
+                state = request(session, "GET", "https://serviceusage.googleapis.com/v1/" + operation["name"])
+                if state.get("done"):
+                    if state.get("error"):
+                        raise RuntimeError(f"{service} could not be enabled")
+                    break
+                time.sleep(2)
+            else:
+                raise RuntimeError(f"{service} enablement timed out")
     account_url = f"https://iam.googleapis.com/v1/projects/{PROJECT}/serviceAccounts/{ACCOUNT}"
     account_response = session.get(account_url, timeout=30)
     if account_response.status_code == 404:

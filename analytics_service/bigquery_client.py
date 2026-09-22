@@ -6,6 +6,7 @@ import time
 from dataclasses import dataclass
 
 import google.auth
+from google.api_core.exceptions import BadRequest
 from google.auth import impersonated_credentials
 from google.cloud import bigquery
 
@@ -142,6 +143,10 @@ class BigQueryExecutor:
             )
         except AnalyticsError:
             raise
+        except BadRequest:
+            if submitted:
+                cancel()
+            raise AnalyticsError("invalid_google_sql", "BigQuery rejected the generated SQL. Try a more specific question; no results were returned.", 422) from None
         except TimeoutError:
             cancelled = cancel() if submitted else True
             message = "The query deadline was reached; cancellation was requested."

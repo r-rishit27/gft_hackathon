@@ -12,7 +12,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.staticfiles import StaticFiles
 
@@ -107,6 +107,10 @@ def create_app(settings: Settings | None = None, model=None, executor=None):
     @app.get("/health")
     def health():
         return {"status": "ok", "checks": "process only; not model or BigQuery readiness"}
+
+    @app.get("/")
+    def home():
+        return RedirectResponse("/ui/")
 
     @app.get("/metrics")
     def metrics(identity: Identity = Depends(authenticate)):

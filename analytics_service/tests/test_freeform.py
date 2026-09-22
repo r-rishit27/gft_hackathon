@@ -19,6 +19,10 @@ def test_narrow_dialect_normalization_keeps_all_statements_and_names():
     sql, corrections = normalize_date_trunc("SELECT DATE_TRUNC('month', t.book_time) FROM Transaction t")
     assert "DATE_TRUNC(t.book_time, MONTH)" in sql
     assert corrections[0]["kind"] == "dialect"
+    sql, corrections = normalize_date_trunc("SELECT DATE_TRUNC('month', book_time) FROM Transaction")
+    assert "DATE_TRUNC(book_time, MONTH)" in sql and corrections
+    literal = "SELECT DATE_TRUNC('month', 'book_time') FROM Transaction"
+    assert normalize_date_trunc(literal) == (literal, [])
     for query in ["SELECT 1; DROP TABLE Party", "SELECT DATE_TRUNC(t.book_time, MONTH) FROM Transaction t",
                   "SELECT DATE_TRUNC('bogus', t.book_time) FROM Transaction t"]:
         assert normalize_date_trunc(query) == (query, [])
@@ -94,3 +98,29 @@ def test_chart_empty_partial_duplicate_and_null_behavior():
     assert build_exploration(replace(result, truncated=True), sql)[0]["charts"] == []
     assert build_exploration(replace(result, rows=[]), sql)[0]["state"] == "empty"
     assert build_exploration(replace(result, rows=result.rows * 2), sql)[0]["charts"] == []
+
+
+def test_nested_amount_alias_is_resolved_before_canonicalization():
+    from analytics_service.validator import SQLValidator
+    scope = fixture_settings("unit-test").scopes["hk"]
+    sql = "SELECT SUM(CAST(t.normalized_booked_amount.units AS NUMERIC) + CAST(t.normalized_booked_amount.nanos AS NUMERIC) / 1000000000) AS amount FROM Transaction t"
+    result = SQLValidator(load_catalog()).validate(sql, scope)
+    assert "_0.normalized_booked_amount.units" in result.sql
+
+
+def test_catalog_retrieval_focuses_metadata_without_question_whitelist():
+    from pipeline.text2sql_falkordb import fetch_catalog_tables, retrieve_catalog_tables
+    tables = fetch_catalog_tables()
+    assert set(retrieve_catalog_tables("How many cases had SAR filings each month?", tables)) == {"RiskCaseEvent"}
+    assert "Party" in retrieve_catalog_tables("How many active customers at the end of August 2026?", tables)
+    assert "Transaction" in retrieve_catalog_tables("Compare payments by direction in France", tables)
+
+
+def test_ambiguous_customer_snapshot_count_is_rejected():
+    from analytics_service.validator import SQLValidator
+    from analytics_service.errors import AnalyticsError
+    validator = SQLValidator(load_catalog())
+    scope = fixture_settings("unit-test").scopes["hk"]
+    with pytest.raises(AnalyticsError, match="historical versions"):
+        validator.validate("SELECT COUNT(*) FROM Party WHERE exit_date IS NULL", scope)
+    assert validator.validate("SELECT COUNT(DISTINCT party_id) FROM Party", scope)

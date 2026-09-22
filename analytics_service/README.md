@@ -13,17 +13,19 @@ ollama serve
 # In another terminal:
 ollama pull mannix/defog-llama3-sqlcoder-8b
 gcloud auth application-default login
-gcloud auth application-default set-quota-project gen-lang-client-0810987953
+gcloud auth application-default set-quota-project 1076784773678
 .venv/bin/python -m analytics_service.setup_local
 ```
 
 The last command is read-only: it compares every live table, recursive schema and row count with the saved catalog/manifest, stopping on drift. It does not verify full row-content hashes.
 
-After administrator approval, run `.venv/bin/python -m analytics_service.setup_local --apply`. This provisions twelve authorized views in `aml_analytics_demo`, a dedicated `aml-analytics-demo` service account, project BigQuery Job User, view-dataset READER, and an impersonation grant for the verified signed-in user on that account only. It may enable the IAM Credentials API. No billing configuration, source table replacement, or public deployment is performed. Existing IAM/access entries are preserved. Unexpected existing views stop setup rather than being overwritten.
+After administrator approval, run `.venv/bin/python -m analytics_service.setup_local --apply`. This provisions twelve authorized views in `aml_analytics_demo`, a dedicated `aml-analytics-demo` service account, project BigQuery Job User, view-dataset READER, and an impersonation grant for the verified signed-in user on that account only. It enables the IAM, IAM Credentials and Cloud Resource Manager APIs if needed. No billing configuration, source table replacement, or public deployment is performed. Existing IAM/access entries are preserved. Unexpected existing views stop setup rather than being overwritten. API activation can take a few minutes to propagate; setup retries only explicit SERVICE_DISABLED responses, not permission denials or ambiguous mutations.
+
+`1076784773678` is the verified numeric ID of this same project. Using the text ID as the ADC quota-project header caused misleading API-disabled errors during local setup; the numeric ID resolved them. OpenID user identity verification does not attach a Cloud quota header.
 
 This local demo permits all seven entity-country scopes. Contact fields (addresses, phone numbers, emails, birth dates and IP addresses) are excluded. Separately verify that the execution principal has no direct base-table access or write permissions. For country-restricted users, provision separate filtered views and a distinct service account per scope; changing the displayed scope list is insufficient.
 
-Setup writes ignored, owner-only `analytics_service/config.local.json` and `analytics_service/access-token.local.json`. Enter the latter's `access_token` in the UI. Do not commit either file or send credentials in chat. Re-running setup refuses to overwrite local configuration. Partial cloud setup can be rerun after its error is resolved, provided no local configuration was written.
+Setup writes ignored, owner-only `analytics_service/config.local.json` and `analytics_service/access-token.local.json`. In the UI, choose **Open access file** and select the latter file; it is read locally and only its app token is used for same-origin authentication. Alternatively enter its `access_token` manually. Do not commit either file or send credentials in chat. Re-running setup refuses to overwrite local configuration. Partial cloud setup can be rerun after its error is resolved, provided no local configuration was written.
 
 ## Start Locally
 
@@ -57,6 +59,8 @@ Google authentication uses local ADC, then impersonates the configured read-only
 
 The adapter adds backward-compatible `execution_mode` and `allowed_columns` fields to `/generate-sql`. Execution mode calls Ollama using native BigQuery STRUCT/ARRAY types and enums, without exemplar answers or fuzzy SQL repair. The original default model pathway remains available. The schema catalog supplies metadata, not customer examples. FalkorDB is optional for the legacy pathway, not required by this local integration.
 
+Catalog mode ranks schema names, descriptions, enum values and domain vocabulary to focus the model on relevant tables, retaining an account-owner bridge when needed. This is metadata retrieval, not a whitelist of questions or stored SQL answers. Retrieval can miss a needed table; such questions may require clarification. The independent execution validator still enforces the complete approved catalog.
+
 A narrow AST normalization converts SQLCoder's known `DATE_TRUNC('month', timestamp)` argument order to GoogleSQL. It records corrections in the model response and never guesses identifiers or removes extra statements. Other invalid SQL is rejected; all normalized SQL still passes independent validation and a BigQuery dry run.
 
 Candidates must pass one-read-only-statement, resource, function and schema checks. Table references are rewritten to authorized views. BigQuery performs a dry run before execution: configured 100 MB scan budget, 60-second execution deadline, best-effort cancellation, 1,000-row and approximately 2 MB response limits. Local inference has a configurable 240-second timeout with no automatic retry. These checks do **not** prove that arbitrary generated SQL matches business intent; review executed SQL for consequential analysis.
@@ -64,6 +68,8 @@ Candidates must pass one-read-only-statement, resource, function and schema chec
 Responses carry typed columns, exact decimal strings, rows, executed SQL, request/job IDs, scan bytes, scope, data period, simulation warnings and deterministic charts. Tables preserve NUMERIC values; charts use approximate JavaScript numbers. Truncated results suppress charts. Ambiguous chart dimensions remain tables. No query results go back to the model. Empty results stay empty.
 
 Party has historical versions; current-customer joins must deduplicate by latest `validity_start_time`. Risk-score periods must be explicit. Money uses normalized USD `units + nanos / 1e9`, not STRUCT-to-number casting. SAR events differ from distinct SAR cases. The prompt explains these rules; domain-owner review remains necessary.
+
+Party aggregates without an explicit ROW_NUMBER snapshot are conservatively rejected, except pure min/max or distinct-ID-only queries. This blocks the observed duplicate-version count failure; it is not a proof of every temporal join. BigQuery dialect errors return a query-rejected response rather than claiming the database connection is down.
 
 ## Tests and Limits
 

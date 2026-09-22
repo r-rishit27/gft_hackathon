@@ -105,6 +105,10 @@ class SQLValidator:
             if not physical:
                 raise AnalyticsError("sql_rejected", "A query must use an approved data resource.")
             tree = qualify(tree, dialect="bigquery", schema=schema, infer_schema=False,
+                           validate_qualify_columns=True, quote_identifiers=False)
+            # Resolve three-part STRUCT columns before renaming table aliases;
+            # SQLGlot otherwise mistakes t.amount.units for a resource path.
+            tree = qualify(tree, dialect="bigquery", schema=schema, infer_schema=False,
                            validate_qualify_columns=True, quote_identifiers=False,
                            canonicalize_table_aliases=True)
         except (SqlglotError, RecursionError, ValueError):
@@ -117,6 +121,13 @@ class SQLValidator:
             fields = {field.name.lower() for field in parent_type.expressions}
             if not isinstance(dot.expression, exp.Identifier) or dot.expression.name.lower() not in fields:
                 raise AnalyticsError("sql_rejected", "Unknown nested field.")
+        if any(source.name.lower() == "party" for source in physical):
+            aggregates = list(tree.find_all(exp.AggFunc))
+            sensitive = [a for a in aggregates if not isinstance(a, (exp.Min, exp.Max, exp.RowNumber, exp.Rank, exp.DenseRank))]
+            unique_ids_only = (sensitive and all(isinstance(a, exp.Count) and isinstance(a.this, exp.Distinct) for a in sensitive)
+                               and all(c.name.lower() == "party_id" for c in tree.find_all(exp.Column)))
+            if sensitive and not unique_ids_only and not list(tree.find_all(exp.RowNumber)):
+                raise AnalyticsError("historical_ambiguity", "Party has historical versions. Ask for the latest record per customer before aggregating; this query was not executed.")
         for query_scope in traverse_scope(tree):
             for _, source in query_scope.selected_sources.values():
                 if isinstance(source, exp.Table):

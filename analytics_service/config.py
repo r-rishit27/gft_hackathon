@@ -1,6 +1,7 @@
 import json
 import re
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -49,6 +50,8 @@ class Identity(StrictModel):
 
 
 class Settings(StrictModel):
+    query_mode: Literal["freeform", "reviewed"] = "freeform"
+    model_timeout_seconds: int = Field(default=240, ge=30, le=300)
     model_url: str = "http://127.0.0.1:8000/generate-sql"
     maximum_bytes_billed: int = Field(gt=0)
     scopes: dict[str, Scope] = Field(min_length=1)

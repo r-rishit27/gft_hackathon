@@ -11,13 +11,13 @@
 <body>
   <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">A</span> AML Analytics</div><span class="badge">SYNTHETIC DATA</span></header>
   <main>
-    <section class="heading"><div><p class="eyebrow">INVESTIGATION INTELLIGENCE</p><h1>Portfolio overview</h1></div><div class="connection"><span id="status">Not connected</span><span id="scope"></span></div></section>
+    <section class="heading"><div><p class="eyebrow">INVESTIGATION INTELLIGENCE</p><h1>AML Analytics</h1></div><div class="connection"><span id="status">Not connected</span><span id="scope"></span></div></section>
     <form id="access-form" class="access"><label for="token">Access token</label><input id="token" type="password" autocomplete="off" required maxlength="512"><button type="submit">Connect</button><button id="disconnect" type="button" hidden>Disconnect</button></form>
     <form id="query-form" class="query-form">
-      <div class="selector"><label for="metric">KPI</label><select id="metric" disabled><option>Choose a KPI</option></select></div>
-      <div class="question"><label for="question">Question</label><textarea id="question" rows="1" autocomplete="off" maxlength="2000" disabled></textarea></div>
+      <div class="question"><label for="question">Ask your dataset</label><textarea id="question" rows="3" autocomplete="off" maxlength="2000" placeholder="How did monthly transaction amounts change by direction during 2026?" required disabled></textarea></div>
       <button id="run" type="submit" disabled>Run query</button>
     </form>
+    <div class="connection"><span id="model-status">Ollama: not checked</span><span id="bq-status">BigQuery: not checked</span></div>
     <div id="message" role="status" aria-live="polite"></div>
     <section id="results" hidden>
       <div class="result-heading"><h2 id="metric-title">Results</h2><span id="freshness"></span></div>
@@ -30,7 +30,7 @@
       <details class="provenance"><summary>SQL and provenance</summary><dl id="provenance"></dl><pre id="sql"></pre></details>
     </section>
     <section id="empty" class="empty"><div class="empty-symbol" aria-hidden="true">[ ]</div><h2>No query results</h2><p id="empty-status">Authentication required</p></section>
-    <footer><span>AML Analytics / v0.1</span><span>UTC reporting · Read-only</span></footer>
+    <footer><span>gen-lang-client-0810987953 / aml_demo</span><span>UTC reporting · Read-only</span></footer>
   </main>
 </body>
 </html>

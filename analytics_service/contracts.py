@@ -21,6 +21,9 @@ class Dashboard(BaseModel):
 
 
 class QueryResponse(BaseModel):
+    question: str = ""
+    generation_source: str = "ollama"
+    semantic_validation: str = "schema_and_policy_only"
     request_id: str
     job_id: str
     metric: str

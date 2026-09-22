@@ -1,5 +1,7 @@
 # secrets
 .env
+analytics_service/*.local.json
+.venv/
 
 # python
 __pycache__/

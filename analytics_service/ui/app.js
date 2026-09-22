@@ -2,7 +2,6 @@
 const $ = (id) => document.getElementById(id);
 let token = "";
 let charts = [];
-let metrics = [];
 let generation = 0;
 const title = (name) => name.replaceAll("_", " ");
 const element = (tag, text, className) => {
@@ -38,18 +37,15 @@ $("access-form").addEventListener("submit", async (event) => {
   token = $("token").value;
   $("message").textContent = "";
   try {
-    const response = await api("/metrics");
+    const response = await api("/status");
     if (thisGeneration !== generation) return;
-    metrics = response.questions;
-    $("metric").replaceChildren(...metrics.map((metric) => {
-      const option = element("option", title(metric.id)); option.value = metric.id; return option;
-    }));
-    $("question").value = metrics[0].question;
-    for (const id of ["metric", "question", "run"]) $(id).disabled = false;
+    for (const id of ["question", "run"]) $(id).disabled = false;
     $("run").textContent = "Run query";
     $("scope").textContent = response.scope.join(" / ");
-    $("status").textContent = response.mode === "offline_fixture" ? "Offline fixture" : "Authenticated";
-    $("empty-status").textContent = "Ready";
+    $("status").textContent = "Authenticated";
+    $("model-status").textContent = `Ollama: ${response.model.ready ? response.model.model : "unavailable"}`;
+    $("bq-status").textContent = `BigQuery: ${response.bigquery.ready ? "connected / " + response.location : "unavailable"}`;
+    $("empty-status").textContent = response.model.ready && response.bigquery.ready ? "Ready" : "Connection setup incomplete";
     $("token").value = "";
     $("disconnect").hidden = false;
   } catch (error) {
@@ -62,7 +58,10 @@ function disconnect() {
   generation += 1;
   token = "";
   clearResults();
-  for (const id of ["metric", "question", "run"]) $(id).disabled = true;
+  for (const id of ["question", "run"]) $(id).disabled = true;
+  $("question").value = "";
+  $("model-status").textContent = "Ollama: not checked";
+  $("bq-status").textContent = "BigQuery: not checked";
   $("status").textContent = "Not connected";
   $("scope").textContent = "";
   $("empty-status").textContent = "Authentication required";
@@ -70,9 +69,6 @@ function disconnect() {
   $("token").value = "";
 }
 $("disconnect").addEventListener("click", disconnect);
-$("metric").addEventListener("change", () => {
-  $("question").value = metrics.find((metric) => metric.id === $("metric").value).question;
-});
 $("query-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const thisGeneration = generation;
@@ -80,7 +76,7 @@ $("query-form").addEventListener("submit", async (event) => {
   $("run").disabled = true;
   $("run").textContent = "Running...";
   $("message").textContent = "";
-  $("empty-status").textContent = "Query in progress";
+  $("empty-status").textContent = "Generating, validating and querying BigQuery...";
   try {
     const result = await api("/query", {question: $("question").value});
     if (thisGeneration !== generation) return;
@@ -99,7 +95,7 @@ $("query-form").addEventListener("submit", async (event) => {
 function render(result) {
   $("empty").hidden = true;
   $("results").hidden = false;
-  $("metric-title").textContent = title(result.metric);
+  $("metric-title").textContent = result.question || title(result.metric);
   $("status").textContent = result.mode === "offline_fixture" ? "Offline fixture" : "BigQuery result";
   $("freshness").textContent = `As of ${result.data_as_of.slice(0, 10)} · ${result.timezone}`;
   $("warnings").replaceChildren(...result.warnings.map((warning) => element("div", warning)));
@@ -123,7 +119,8 @@ function render(result) {
     wrap.append(canvas);
     pane.append(element("h3", `${title(spec.y)} / ${spec.unit}`), wrap);
     $("charts").append(pane);
-    const labels = [...new Set(result.rows.map((row) => row[spec.x]))].sort();
+    const labels = [...new Set(result.rows.map((row) => row[spec.x]))];
+    if (spec.kind === "line") labels.sort();
     const groups = spec.series ? [...new Set(result.rows.map((row) => row[spec.series]))] : [null];
     const datasets = groups.map((group, index) => ({
       label: group ?? title(spec.y), borderColor: colors[index % colors.length],
@@ -133,7 +130,7 @@ function render(result) {
         return row?.[spec.y] == null ? null : Number(row[spec.y]);
       }),
     }));
-    charts.push(new Chart(canvas, {type: spec.kind, data: {labels: labels.map((label) => String(label).slice(0, 10)), datasets},
+    charts.push(new Chart(canvas, {type: spec.kind, data: {labels: labels.map((label) => String(label)), datasets},
       options: {responsive: true, maintainAspectRatio: false, animation: false,
         plugins: {legend: {position: "bottom", labels: {boxWidth: 12, usePointStyle: true}}},
         scales: {x: {grid: {display: false}, ticks: {maxTicksLimit: 5, maxRotation: 0}},

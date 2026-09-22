@@ -60,6 +60,23 @@ class BigQueryExecutor:
         self.client_factory = client_factory
         self.clock = clock
 
+    def status(self, scope):
+        client = None
+        try:
+            client = self.client_factory(scope)
+            checked = []
+            for resource in scope.resources.values():
+                table = client.get_table(resource.view, timeout=5, retry=None)
+                if table.table_type != "VIEW" or table.location != LOCATION:
+                    return {"ready": False, "message": "An approved view is absent or in the wrong region."}
+                checked.append(resource.view)
+            return {"ready": True, "approved_views": len(checked)}
+        except Exception:
+            return {"ready": False, "message": "BigQuery authentication or approved-view access is not configured."}
+        finally:
+            if client is not None:
+                client.close()
+
     def execute(self, query: ValidatedQuery, scope: Scope, request_id: str) -> QueryResult:
         deadline = self.clock() + 60
         client = self.client_factory(scope)

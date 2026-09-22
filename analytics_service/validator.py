@@ -15,6 +15,13 @@ ALLOWED_FUNCTIONS = {
     "TRY_CAST", "DATE", "TIMESTAMP", "DATE_TRUNC", "TIMESTAMP_TRUNC", "TIMESTAMP_DIFF",
     "DATE_DIFF", "SAFE_DIVIDE", "ROW_NUMBER", "RANK", "DENSE_RANK", "ROUND", "ABS",
     "EXTRACT", "NULLIF", "LOWER", "UPPER", "AND", "OR", "NOT",
+    "CASE", "CONCAT", "CONCAT_WS", "SUBSTRING", "SPLIT", "STARTS_WITH", "ENDS_WITH",
+    "REGEXP_EXTRACT", "REGEXP_LIKE", "LENGTH", "ARRAY_SIZE", "ARRAY_AGG", "STRUCT",
+    "APPROX_QUANTILE", "APPROX_DISTINCT", "LEAD", "LAG", "FIRST_VALUE", "LAST_VALUE",
+    "FLOOR", "CEIL", "LOG", "SQRT", "POWER", "STDDEV", "STDDEV_POP", "STDDEV_SAMP",
+    "VARIANCE", "VARIANCE_POP", "PERCENTILE_CONT", "PERCENTILE_DISC", "TRIM",
+    "TIMESTAMP_ADD", "TIMESTAMP_SUB", "DATE_ADD", "DATE_SUB", "CURRENT_DATE", "CURRENT_TIMESTAMP",
+    "TIME_TO_STR", "STR_TO_DATE", "STR_TO_TIME", "DATE_FROM_PARTS", "UNNEST",
 }
 FORBIDDEN_NODES = {
     "Insert", "Update", "Delete", "Create", "Drop", "Alter", "Merge", "Command", "Copy",
@@ -27,6 +34,7 @@ FORBIDDEN_NODES = {
 class ValidatedQuery:
     sql: str
     sha256: str
+    warnings: tuple[str, ...] = ()
 
 
 class SQLValidator:
@@ -120,7 +128,11 @@ class SQLValidator:
                     source.meta.clear()
                     source.meta["quoted_table"] = True
         sql = tree.sql(dialect="bigquery", comments=False)
-        return ValidatedQuery(sql, hashlib.sha256(sql.encode()).hexdigest())
+        warnings = []
+        if any(t.name == "Party" for t in tree.find_all(exp.Table)) and list(tree.find_all(exp.Join)):
+            if not list(tree.find_all(exp.RowNumber)):
+                warnings.append("Party contains historical versions. Review the join's as-of condition to avoid duplicated customers.")
+        return ValidatedQuery(sql, hashlib.sha256(sql.encode()).hexdigest(), tuple(warnings))
 
     def validate_metric(self, candidate: str, expected: str, scope: Scope) -> ValidatedQuery:
         actual = self.validate(candidate, scope)

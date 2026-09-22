@@ -1,72 +1,77 @@
-# Independent AML Analytics Service
+# Local Ollama + BigQuery Analytics
 
-This service owns validation, authorized BigQuery execution and a separate dashboard. It uses the model team's existing HTTP endpoint and changes none of their source files. Start from the repository root with Python 3.12 or newer.
+Free-form question -> local SQLCoder -> independent GoogleSQL validator -> BigQuery authorized views -> deterministic dashboard. Runtime results come from `gen-lang-client-0810987953.aml_demo` in `asia-south1`: actual cloud-hosted **synthetic demo data**, not real banking customer data. No fixture fallback or cached KPI-answer shortcut is used by the live launcher.
 
-## Local Offline Preview
+## First Setup
 
-```sh
-python3 -m venv analytics_service/.venv
-analytics_service/.venv/bin/pip install -r analytics_service/requirements-dev.txt
-export AML_DEMO_TOKEN="$(openssl rand -hex 24)"
-analytics_service/.venv/bin/uvicorn analytics_service.demo:create_demo_app --factory --host 127.0.0.1 --port 8011 --no-access-log
-```
-
-Open http://127.0.0.1:8011/ui/ and enter the token you generated. The browser holds it only in memory. Choose a KPI and run the query. The offline fixture uses a tiny DuckDB dataset and a deterministic model stub; every response and the UI identify it as an offline fixture. It does not reproduce the live dataset's totals and never calls Google or the model service.
-
-## Live Setup: Required Before Real Integration
-
-1. Have an administrator create approved views in `asia-south1` with exactly the required country/entity filtering and approved projected columns. The example view names are placeholders, not existing provisioned resources. Use `party_id` prefixes for Party/RiskScores/RiskCaseEvent and owner `account_id` prefixes for Transaction. Match complete prefixes such as `HASE_HK_`, not a substring. Multi-country scopes need explicitly approved union views.
-2. Authorize only these views on the base dataset. Give each scope's service account query-job permission in the project and read access only to its approved view resources. It must have no read access to the base dataset, other scopes, and no ability to create or edit views. Do not give the runtime Owner, Editor or Data Editor.
-3. Use ADC from an attached workload identity (or approved local ADC for testing). The source identity needs impersonation rights only on the allowed scoped service accounts. Each scope has a distinct target principal. No service-account JSON key, loader token or `gcloud print-access-token` is used by this app.
-4. Copy `config.example.json` to ignored `analytics_service/config.local.json`, choose an explicit scan budget, and replace the zero token hash with SHA-256 of a cryptographically random bearer token of at least 24 characters. Assign one token and scope per analyst. Keep the token secret and restart the service to revoke or rotate configured tokens. This is local integration authentication, not enterprise SSO.
-5. Set `AML_ANALYTICS_CONFIG` to that file and start the model service independently. Start analytics with the command below. Verify country isolation and denied direct base-table access using each actual execution principal before exposing the service.
+Run from the repository root with Python 3.12 or newer:
 
 ```sh
-export AML_ANALYTICS_CONFIG="$PWD/analytics_service/config.local.json"
-analytics_service/.venv/bin/uvicorn analytics_service.app:create_app --factory --host 127.0.0.1 --port 8011 --no-access-log
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+ollama serve
+# In another terminal:
+ollama pull mannix/defog-llama3-sqlcoder-8b
+gcloud auth application-default login
+gcloud auth application-default set-quota-project gen-lang-client-0810987953
+.venv/bin/python -m analytics_service.setup_local
 ```
 
-The app verifies configured resources are views in the expected region. It cannot infer whether an administrator wrote their filters correctly or granted extra IAM permissions. Those must be reviewed and tested separately. HASE/HSBC labels are not themselves an authorization mechanism. No views, service accounts, billing changes or cloud infrastructure are created automatically.
+The last command is read-only: it compares every live table, recursive schema and row count with the saved catalog/manifest, stopping on drift. It does not verify full row-content hashes.
 
-## API
+After administrator approval, run `.venv/bin/python -m analytics_service.setup_local --apply`. This provisions twelve authorized views in `aml_analytics_demo`, a dedicated `aml-analytics-demo` service account, project BigQuery Job User, view-dataset READER, and an impersonation grant for the verified signed-in user on that account only. It may enable the IAM Credentials API. No billing configuration, source table replacement, or public deployment is performed. Existing IAM/access entries are preserved. Unexpected existing views stop setup rather than being overwritten.
+
+This local demo permits all seven entity-country scopes. Contact fields (addresses, phone numbers, emails, birth dates and IP addresses) are excluded. Separately verify that the execution principal has no direct base-table access or write permissions. For country-restricted users, provision separate filtered views and a distinct service account per scope; changing the displayed scope list is insufficient.
+
+Setup writes ignored, owner-only `analytics_service/config.local.json` and `analytics_service/access-token.local.json`. Enter the latter's `access_token` in the UI. Do not commit either file or send credentials in chat. Re-running setup refuses to overwrite local configuration. Partial cloud setup can be rerun after its error is resolved, provided no local configuration was written.
+
+## Start Locally
+
+```sh
+.venv/bin/python -m analytics_service.local
+```
+
+Open [AML Analytics](http://127.0.0.1:8011/ui/). The launcher starts the model on loopback port 8000 and analytics on 8011; it refuses occupied ports. Ollama must already be running. Ctrl-C stops both Python services. Use `--port 8012` for another UI port.
+
+| Variable | Launcher value |
+| --- | --- |
+| `MODEL_BACKEND` | `ollama` |
+| `OLLAMA_HOST` | `http://127.0.0.1:11434` |
+| `OLLAMA_MODEL` | `mannix/defog-llama3-sqlcoder-8b` |
+| `SCHEMA_BACKEND` | `catalog`: deployed schema JSON; no FalkorDB credentials required |
+| `OLLAMA_NUM_CTX` | `8192` |
+| `OLLAMA_TIMEOUT_SECONDS` | `240` |
+| `AML_ANALYTICS_CONFIG` | Absolute local analytics configuration path |
+
+Google authentication uses local ADC, then impersonates the configured read-only service account. There is no Gemini key or Google credential in the browser. The browser calls its same-origin analytics service with its local bearer token, held in memory until disconnect/reload.
+
+## API and Boundaries
 
 | Route | Contract |
 | --- | --- |
-| `GET /health` | Public process liveness only; does not assert downstream readiness. |
-| `GET /metrics` | Bearer-authenticated questions, units, assigned scope and schema version. |
-| `POST /query` | Bearer-authenticated `{"question":"..."}`. Extra fields, including client-selected scope or SQL, are rejected. |
-| `/ui/` | Public static shell; all data requests require authentication. |
+| `GET /health` | Process liveness only |
+| `GET /status` | Authenticated model and authorized-view readiness |
+| `POST /query` | Authenticated `{"question":"..."}`; client SQL/scope fields rejected |
+| `GET /metrics` | Optional reviewed questions; not a free-form mode restriction |
+| `/ui/` | Static shell; no data without authentication |
 
-Responses contain typed columns, rows, executed SQL, request/job IDs, scope, units, data-as-of, warnings, mode and deterministic chart specs. NUMERIC decimals and integers beyond JavaScript's safe range are serialized as strings; table text preserves them, while charts use approximate floating-point display. Non-finite floats become null. All data responses use `Cache-Control: no-store`.
+The adapter adds backward-compatible `execution_mode` and `allowed_columns` fields to `/generate-sql`. Execution mode calls Ollama using native BigQuery STRUCT/ARRAY types and enums, without exemplar answers or fuzzy SQL repair. The original default model pathway remains available. The schema catalog supplies metadata, not customer examples. FalkorDB is optional for the legacy pathway, not required by this local integration.
 
-V1 supports six fixed, reviewed SQL shapes, not arbitrary banking questions. Unsupported questions request clarification. Model candidates are structurally qualified and compared with the expected metric before execution. User values are never interpolated into SQL: v1 has no user-controlled query parameters. Add typed BigQuery parameter binding before enabling custom date/risk filters. Read [MODEL_HANDOFF.md](MODEL_HANDOFF.md) for exact scope and semantics.
+A narrow AST normalization converts SQLCoder's known `DATE_TRUNC('month', timestamp)` argument order to GoogleSQL. It records corrections in the model response and never guesses identifiers or removes extra statements. Other invalid SQL is rejected; all normalized SQL still passes independent validation and a BigQuery dry run.
 
-Per request: 30-second model HTTP timeout; 60-second BigQuery operation budget; mandatory estimated/actual scan limits; 1,000 rows and approximately 2 MB of row JSON; bounded concurrency and per-identity rate limiting. BigQuery cancellation is best effort. Unconfirmed cancellation is reported rather than claimed successful. The deterministic job ID is `aml_` plus the response request ID without hyphens. An operator can use it to investigate uncertain submissions.
+Candidates must pass one-read-only-statement, resource, function and schema checks. Table references are rewritten to authorized views. BigQuery performs a dry run before execution: configured 100 MB scan budget, 60-second execution deadline, best-effort cancellation, 1,000-row and approximately 2 MB response limits. Local inference has a configurable 240-second timeout with no automatic retry. These checks do **not** prove that arbitrary generated SQL matches business intent; review executed SQL for consequential analysis.
 
-Charts/insights are suppressed on truncated results. No model-generated code executes, no result is returned to the model, no cross-user cache exists, and no export or background-job endpoint is exposed. The model's `schema_valid` flag is never sufficient to execute SQL.
+Responses carry typed columns, exact decimal strings, rows, executed SQL, request/job IDs, scan bytes, scope, data period, simulation warnings and deterministic charts. Tables preserve NUMERIC values; charts use approximate JavaScript numbers. Truncated results suppress charts. Ambiguous chart dimensions remain tables. No query results go back to the model. Empty results stay empty.
 
-## Verification
+Party has historical versions; current-customer joins must deduplicate by latest `validity_start_time`. Risk-score periods must be explicit. Money uses normalized USD `units + nanos / 1e9`, not STRUCT-to-number casting. SAR events differ from distinct SAR cases. The prompt explains these rules; domain-owner review remains necessary.
 
-```sh
-analytics_service/.venv/bin/python -m pytest analytics_service/tests -q
-python -m analytics_service.handoff --output analytics_service/model_contract.json
-```
-
-Numerical fixtures run transpiled gold queries through DuckDB; they do not replace BigQuery dialect verification. The live tests are skipped unless explicitly enabled:
+## Tests and Limits
 
 ```sh
-export AML_LIVE_TEST_URL=http://127.0.0.1:8011
-export AML_LIVE_TEST_TOKEN="your analyst token"
-AML_RUN_LIVE=1 analytics_service/.venv/bin/python -m pytest analytics_service/tests/test_live.py -q
+.venv/bin/pip install -r analytics_service/requirements-dev.txt
+.venv/bin/python -m pytest analytics_service/tests -q
 ```
 
-Enabling this test runs six read-only BigQuery queries under configured limits and may consume quota/cost. It requires the actual model service, approved views and IAM configuration. Run it only after those prerequisites have been checked.
+Unit tests use explicit doubles/DuckDB fixtures isolated from the application. Live verification must exercise actual Ollama and BigQuery, compare gold values and verify IAM denials. Skipped live tests do not prove connectivity. See `VERIFICATION.md` for evidence and limitations.
 
-`tests/browser.cjs` performs desktop/mobile Playwright checks on the offline preview, including nonblank canvas pixels, query changes, authentication and overflow. It requires a separately installed `playwright` Node package and Chromium, and writes screenshots under `/tmp` by default.
-
-## Operational Limits
-
-- Bind to loopback for local work. Before network deployment: replace local bearer provisioning with approved enterprise identity, enforce HTTPS, review CSRF/origin controls for the chosen identity mechanism, restrict ingress, and configure central audit logging and distributed limits. The current in-memory limiter is per process; run one worker locally.
-- Audit events contain subject, scope, SQL hash, schema version, job ID, bytes and latency, never raw questions, SQL, tokens or results. Configure the `aml.analytics.audit` logger at INFO in a protected log sink. Error details are redacted. The model endpoint currently does not provide a required model version; add that as a backward-compatible field before production traceability claims.
-- All data and model outputs remain synthetic. This package is not a compliance certification and is not approved for automated AML decisions or real customer information.
-- Chart.js 4.4.8 is vendored with its license, so charts make no third-party runtime requests. Google client, FastAPI and SQLGlot versions are pinned; review dependency upgrades with regression tests.
+No cloud compute, GPU hosting or public endpoint is deployed. Before network deployment, replace local bearer provisioning with approved identity, add TLS/ingress controls and centralized audit/rate limiting, and review SQL/model risks. Logs exclude raw questions, SQL, credentials and results. This is not a banking compliance certification or automated AML decision system.

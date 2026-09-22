@@ -1,4 +1,8 @@
-# Analytics Verification - 2026-09-19
+# Analytics Verification
+
+**Current checkpoint:** see [Live Integration Checkpoint: 2026-09-22](#live-integration-checkpoint-2026-09-22) below. The following September 19 results describe the previous reviewed-KPI fixture implementation, not the new live integration.
+
+## Archived Results - 2026-09-19
 
 ## Local Results
 
@@ -35,3 +39,27 @@ The foundation remains on `codex/aml-dataset-integration`. The dependent service
 The final refresh found the model owner's new main commit `a2ea455` (schema, graph, enum and retrieval updates). It was merged without conflicts into both review branches. The `/generate-sql` response contract remains compatible by source inspection, the model-owned paths match current `origin/main`, and the full 90-pass/6-skip suite was rerun after the merge. No live model behavior is inferred from this source check.
 
 Before enabling live access, follow the service README to approve view filters and IAM, configure local identity/ADC, start the actual model endpoint, and run the six explicit live tests. Preserve failures for review instead of substituting fixture results. After the foundation merges, update the dependent PR's base to `main` and merge current `main` without force-pushing.
+# Live Integration Checkpoint: 2026-09-22
+
+Branch: `codex/ollama-bigquery-live`, created from remote `main` at `0878868`, then merged with the existing analytics branch. No direct changes were pushed to `main`.
+
+## Verified This Session
+
+- Google ADC login succeeded and uses quota project `gen-lang-client-0810987953`.
+- Live read-only inspection matched all 12 deployed table schemas (including nested types/modes), region `asia-south1`, and manifest row counts. Transaction has 50,000 rows; Party has 1,140 historical rows for the documented 1,000 customers. Full content hashes were not recomputed.
+- Ollama 0.34.2 and `mannix/defog-llama3-sqlcoder-8b` were installed locally. Actual generation returned a schema-valid credit/debit count query in about 22 seconds on the first request.
+- Actual monthly-money generation exposed Postgres-style DATE_TRUNC ordering. Added a narrow AST normalization, with tests preserving statements and identifiers; no fuzzy identifier repair runs in execution mode.
+- Actual India risk-score generation initially used an incorrect occupation predicate. Explicit country-name/prefix guidance corrected the predicate on retest. The retest still used an unnecessary historical Party join; min/max are invariant to those duplicate versions, but this is evidence that schema validity is not proof of business correctness.
+- Unit/regression run: 104 passed, 6 live tests skipped, 2 existing dependency deprecation warnings. Test fixtures are not used by the live launcher.
+- Disconnected UI checked in headless Chrome at 1440x1000 and 390x844: no horizontal overflow, question controls disabled before authentication. Screenshots were saved locally; live chart pixel/value checks remain pending.
+- The old fixture preview on port 8011 was stopped to avoid presenting mock data as live results.
+
+## Pending Access Approval
+
+The security reviewer blocked provisioning persistent IAM/view changes until explicit approval. **No new authorized views, service account, impersonation grant, or live analytics configuration has been created by this setup.** Read-only dataset inspection is not an end-to-end connection test.
+
+Approval is requested for twelve `aml_analytics_demo` authorized views, the `aml-analytics-demo` service account, project Job User plus read-only view access, and signed-in-user impersonation of that account only. Source rows, billing and public deployment are outside the setup.
+
+After approval: run approved setup, verify denied direct base-table/write access, start the real analytics service, compare diverse NLP results against independent gold queries, run desktop/mobile live browser tests, and update this checkpoint with actual BigQuery job IDs. No claim of completed live dashboard integration is made yet.
+
+---

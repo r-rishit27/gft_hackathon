@@ -22,6 +22,7 @@ from .config import Identity, Settings
 from .contracts import Question, QueryResponse
 from .dashboard import build_dashboard
 from .errors import AnalyticsError
+from .explore_dashboard import build_exploration
 from .metrics import METRICS, resolve_metric
 from .model_client import ModelClient
 from .validator import SQLValidator
@@ -37,7 +38,7 @@ def create_app(settings: Settings | None = None, model=None, executor=None):
     settings = settings or Settings.from_file(os.environ["AML_ANALYTICS_CONFIG"])
     catalog = load_catalog()
     validator = SQLValidator(catalog)
-    model = model or ModelClient(settings.model_url)
+    model = model or ModelClient(settings.model_url, timeout=settings.model_timeout_seconds)
     executor = executor or BigQueryExecutor(settings.maximum_bytes_billed)
     semaphore = threading.BoundedSemaphore(settings.max_concurrent_queries)
     rate_lock = threading.Lock()
@@ -114,6 +115,14 @@ def create_app(settings: Settings | None = None, model=None, executor=None):
                 "mode": getattr(executor, "mode", "bigquery"),
                 "questions": [{"id": m.id, "question": m.question, "units": m.units} for m in METRICS]}
 
+    @app.get("/status")
+    def status(identity: Identity = Depends(authenticate)):
+        scope = settings.scopes[identity.scope]
+        return {"mode": "bigquery", "query_mode": settings.query_mode,
+                "project": "gen-lang-client-0810987953", "dataset": "aml_demo", "location": "asia-south1",
+                "scope": scope.entities, "schema_version": catalog["version"],
+                "model": model.status(), "bigquery": executor.status(scope)}
+
     @app.post("/query", response_model=QueryResponse)
     def query(body: Question, request: Request, identity: Identity = Depends(authenticate)):
         started = time.monotonic()
@@ -127,12 +136,19 @@ def create_app(settings: Settings | None = None, model=None, executor=None):
         if not semaphore.acquire(blocking=False):
             raise AnalyticsError("busy", "Query capacity is busy. Try again later.", 429)
         try:
-            metric = resolve_metric(body.question)
             scope = settings.scopes[identity.scope]
-            # Check scope support before contacting the model. Only a canonical, non-sensitive question is sent.
-            validator.validate(metric.sql, scope)
-            candidate = model.generate(metric.question)
-            approved = validator.validate_metric(candidate, metric.sql, scope)
+            question = body.question.strip()
+            if not question:
+                raise AnalyticsError("invalid_request", "Enter a question about the AML dataset.")
+            if settings.query_mode == "reviewed":
+                metric = resolve_metric(question)
+                validator.validate(metric.sql, scope)
+                candidate = model.generate(metric.question)
+                approved = validator.validate_metric(candidate, metric.sql, scope)
+            else:
+                metric = None
+                candidate = model.generate(question, allowed_columns={name: resource.columns for name, resource in scope.resources.items()})
+                approved = validator.validate(candidate, scope)
             request_id = request.state.request_id
             result = executor.execute(approved, scope, request_id)
             warnings = ["Synthetic demo data; risk outputs are simulated.",
@@ -141,14 +157,21 @@ def create_app(settings: Settings | None = None, model=None, executor=None):
                 warnings.append("OFFLINE FIXTURE: neither the live model nor BigQuery was called.")
             if result.truncated:
                 warnings.append("Result limit reached; the table is incomplete.")
+            warnings.extend(approved.warnings)
+            if metric:
+                dashboard, units = build_dashboard(result, metric), metric.units
+            else:
+                dashboard, units = build_exploration(result, approved.sql)
+                warnings.append("AI-generated SQL passed schema, access and execution checks. These checks do not prove it matches your intended business meaning.")
             response = {
-                "request_id": request_id, "job_id": result.job_id, "metric": metric.id,
+                "request_id": request_id, "job_id": result.job_id, "metric": metric.id if metric else "exploration",
+                "question": question, "semantic_validation": "reviewed_template" if metric else "schema_and_policy_only",
                 "columns": result.columns, "rows": result.rows, "sql": approved.sql,
-                "schema_version": catalog["version"], "scope": scope.entities, "units": metric.units,
+                "schema_version": catalog["version"], "scope": scope.entities, "units": units,
                 "data_as_of": "2026-08-31T23:59:59Z", "timezone": "UTC", "synthetic": True,
                 "mode": result.mode, "bytes_processed": result.bytes_processed,
                 "truncated": result.truncated, "warnings": warnings,
-                "dashboard": build_dashboard(result, metric),
+                "dashboard": dashboard,
             }
             LOG.info(json.dumps({"request_id": request_id, "subject": identity.subject, "scope": identity.scope,
                                  "schema_version": catalog["version"], "sql_sha256": approved.sha256,

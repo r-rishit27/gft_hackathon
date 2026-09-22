@@ -21,6 +21,7 @@ DEMO_COLUMNS = {
 
 def fixture_settings(token: str):
     return Settings.model_validate({
+        "query_mode": "reviewed",
         "maximum_bytes_billed": 10_000_000,
         "identities": [{"subject": "local-demo", "token_sha256": hashlib.sha256(token.encode()).hexdigest(), "scope": "hk"}],
         "scopes": {"hk": {

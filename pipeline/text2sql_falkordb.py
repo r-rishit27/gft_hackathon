@@ -56,16 +56,18 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
 
-FALKORDB_HOST = os.environ["FALKORDB_HOST"]
-FALKORDB_PORT = int(os.environ["FALKORDB_PORT"])
-FALKORDB_USERNAME = os.environ["FALKORDB_USERNAME"]
-FALKORDB_PASSWORD = os.environ["FALKORDB_PASSWORD"]
+FALKORDB_HOST = os.environ.get("FALKORDB_HOST", "")
+FALKORDB_PORT = int(os.environ.get("FALKORDB_PORT") or 6379)
+FALKORDB_USERNAME = os.environ.get("FALKORDB_USERNAME", "")
+FALKORDB_PASSWORD = os.environ.get("FALKORDB_PASSWORD", "")
 FALKORDB_GRAPH = os.environ.get("FALKORDB_GRAPH", "aml_data_model")
 # Defog SQLCoder (a Llama-3-8B fine-tune for Postgres/Redshift/Snowflake SQL,
 # on par with capable generalist frontier models per its model card), run
 # locally through Ollama -- no fine-tuning needed.
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mannix/defog-llama3-sqlcoder-8b")
+MODEL_BACKEND = os.environ.get("MODEL_BACKEND", "ollama")
+SCHEMA_BACKEND = os.environ.get("SCHEMA_BACKEND", "auto")
 
 SYSTEM_PROMPT = (
     "You are an AML (anti-money-laundering) analyst and business leader who "
@@ -96,6 +98,10 @@ def sql_type(bq_type):
 
 
 def connect_graph():
+    if SCHEMA_BACKEND == "catalog" or (SCHEMA_BACKEND == "auto" and not FALKORDB_HOST):
+        return None
+    if not FALKORDB_HOST:
+        raise RuntimeError("FalkorDB credentials are missing; choose SCHEMA_BACKEND=catalog for schema-file retrieval")
     db = FalkorDB(
         host=FALKORDB_HOST,
         port=FALKORDB_PORT,
@@ -145,6 +151,8 @@ def _clean_description_for_retrieval(description):
 
 def fetch_all_tables(graph):
     """Pull every table, its fields, and outgoing FK-style edges from the KG."""
+    if graph is None:
+        return fetch_catalog_tables()
     tables = {}
 
     rows = graph.query(
@@ -196,6 +204,23 @@ def fetch_all_tables(graph):
             )
 
     return tables
+
+
+def fetch_catalog_tables():
+    """Actual deployed schema metadata, never fixture rows or cached answers."""
+    path = os.environ.get("AML_SCHEMA_PATH", os.path.join(PROJECT_ROOT, "dataset", "aml_data_model_schema.json"))
+    with open(path, encoding="utf-8") as handle:
+        schema = json.load(handle)
+    return {
+        table["name"]: {
+            "name": table["name"], "description": table.get("description", ""),
+            "primary_key": table.get("primary_key", []), "foreign_keys": [],
+            "fields": [{k: field.get(k) for k in ("name", "type", "sql_type", "description", "allowed_enum_values")}
+                       for field in table["fields"]],
+        }
+        for section in ("input_data_model", "output_data_model")
+        for table in schema[section]["tables"]
+    }
 
 
 _NAME_MATCH_WEIGHT = 2  # a table/field NAME matching the question is a much
@@ -256,6 +281,10 @@ def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
     one hop across REFERENCES/LINKS_TO edges so joinable tables aren't
     dropped. Falls back to the full schema if nothing scores above zero."""
     tables = fetch_all_tables(graph)
+    if graph is None:
+        # Twelve small schema tables fit in the local model context. Preserve all
+        # join paths and nested types when the optional graph is not configured.
+        return tables
     q_tokens = _tokenize(question)
     q_vec = semantic_search.embed(question)
 
@@ -376,7 +405,7 @@ def build_ddl_schema(tables):
     for t in tables.values():
         lines = []
         for f in t["fields"]:
-            col = f'    {f["name"]} {sql_type(f["type"])}'
+            col = f'    {f["name"]} {f.get("sql_type") or sql_type(f["type"])}'
             comment_bits = []
             enum_values = _field_enum_values(f)
             if enum_values:
@@ -395,7 +424,9 @@ def build_ddl_schema(tables):
         if t["primary_key"]:
             pk_cols = ", ".join(t["primary_key"])
             lines.append(f"    PRIMARY KEY ({pk_cols})")
-        body = ",\n".join(lines)
+        # Keep the comma before -- comments so it is not swallowed by the comment.
+        body = "\n".join((line.replace(" --", ", --", 1) if " --" in line else line + ",")
+                         if i < len(lines) - 1 else line for i, line in enumerate(lines))
         statements.append(f'CREATE TABLE {t["name"]} (\n{body}\n);')
     return "\n\n".join(statements)
 
@@ -430,9 +461,22 @@ def build_sqlcoder_input(question, tables, ground_tables=None, feedback=None):
     actually attends to a system role instead of just the prompt body."""
     ddl_schema = build_ddl_schema(tables)
     instructions = [
+        "- Dialect: Google BigQuery GoogleSQL, NOT PostgreSQL. Use backticks for identifiers, single quotes for strings.",
         "- Only generate a SELECT statement -- this is a read-only analytics assistant.",
         "- Never generate INSERT, UPDATE, DELETE, DROP, ALTER, TRUNCATE, or MERGE.",
         "- Use only the tables and columns defined in the database schema below; never invent one.",
+        "- DATE_TRUNC(DATE(timestamp_column), MONTH) groups months; use COUNTIF and SAFE_DIVIDE when needed.",
+        "- Monetary normalized_booked_amount is a STRUCT. Sum CAST(units AS NUMERIC) + CAST(nanos AS NUMERIC) / 1000000000, currency USD. Always qualify units and nanos with normalized_booked_amount.",
+        "- Party has historical versions. For current customers use ROW_NUMBER() OVER (PARTITION BY party_id ORDER BY validity_start_time DESC) and keep row 1 before joining.",
+        "- Latest available data is August 2026. Latest risk scores use MAX(risk_period_end_time), not CURRENT_DATE().",
+        "- Customer country/entity is the party_id/account_id prefix: HASE_HK, HSBC_GB, HSBC_IN, HSBC_TW, HSBC_FR, HSBC_PL, HSBC_IE. Do not use counterparty country for customer country.",
+        "- Country names map EXACTLY: Hong Kong=HASE_HK_, UK/Britain=HSBC_GB_, India=HSBC_IN_, Taiwan=HSBC_TW_, France=HSBC_FR_, Poland=HSBC_PL_, Ireland=HSBC_IE_.",
+        "- Example country predicate for India risk scores: STARTS_WITH(rs.party_id, 'HSBC_IN_'). Example France transactions: STARTS_WITH(t.account_id, 'HSBC_FR_'). Never use occupation, gender, or name to filter country. Do not join Party merely to obtain country; the party_id already has the country prefix.",
+        "- Transaction.account_id joins AccountPartyLink.account_id; AccountPartyLink.party_id joins Party.party_id.",
+        "- RiskScores, Explainability and RiskCaseEvent join Party via party_id. Scores and explanations also join on risk_period_end_time.",
+        "- Array fields require UNNEST; STRUCT fields use dot notation. Never cast an entire STRUCT to a number.",
+        "- SAR cases are COUNT(DISTINCT risk_case_id) with type = 'AML_SAR'; events and cases are different counts.",
+        "- If the question lacks essential meaning or is not answerable from this schema, output CLARIFICATION_REQUIRED instead of guessing.",
     ]
     if ground_tables:
         instructions.append(f"- Use only these exact table names: {', '.join(ground_tables)}.")
@@ -456,8 +500,6 @@ def _extract_sql(text):
     if fence:
         text = fence.group(1).strip()
     text = text.replace("[SQL]", "").replace("[/SQL]", "").strip()
-    if ";" in text:
-        text = text.split(";")[0] + ";"
     return text.strip()
 
 
@@ -477,14 +519,16 @@ def generate_sql_ollama(prompt, system=None, model=None, host=None, max_retries=
         "model": model,
         "prompt": prompt,
         "stream": False,
-        "options": {"temperature": 0, "seed": 0, "top_p": 1.0},
+        "options": {"temperature": 0, "seed": 0, "top_p": 1.0,
+                    "num_ctx": int(os.environ.get("OLLAMA_NUM_CTX", "8192")),
+                    "num_predict": 1200},
     }
     if system:
         payload["system"] = system
     resp = requests.post(
         f"{host}/api/generate",
         json=payload,
-        timeout=180,
+        timeout=int(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "240")),
     )
     resp.raise_for_status()
     return _extract_sql(resp.json().get("response", ""))
@@ -498,16 +542,14 @@ def load_model():
     so callers (app.py's lifespan, evaluate_text2sql.py) have one place to
     do this startup check without depending on generate_sql_ollama's
     internals."""
+    if MODEL_BACKEND != "ollama":
+        raise RuntimeError("This integration requires MODEL_BACKEND=ollama")
     try:
         tags = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
         tags.raise_for_status()
         names = {m.get("name") for m in tags.json().get("models", [])}
-        if not any(OLLAMA_MODEL in n for n in names):
-            print(
-                f"WARNING: '{OLLAMA_MODEL}' not found in `ollama list` output "
-                f"({names or 'no models pulled'}); pull it with "
-                f"`ollama pull {OLLAMA_MODEL}` before generating."
-            )
+        if not any(n in {OLLAMA_MODEL, OLLAMA_MODEL + ":latest"} for n in names):
+            raise RuntimeError(f"Required model is not installed. Run ollama pull {OLLAMA_MODEL}")
     except requests.RequestException as exc:
         raise RuntimeError(
             f"Ollama server not reachable at {OLLAMA_HOST}. Start it (the Ollama app, or "
@@ -745,10 +787,29 @@ def _attempt_generation(question, tables, with_system_prompt, ground_tables, fee
 
 
 def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=True,
-                      ground_tables=False, retry_on_invalid=False):
+                      ground_tables=False, retry_on_invalid=False, execution_mode=False,
+                      allowed_columns=None):
+    if execution_mode:
+        # Keep main's Ollama prompt/inference path, but avoid fuzzy repairs or
+        # exemplar shortcuts when SQL will be executed against real BigQuery.
+        physical = fetch_catalog_tables()
+        names = set(allowed_columns) if allowed_columns is not None else set(physical)
+        tables = {name: physical[name] for name in physical if name in names}
+        for name, table in tables.items():
+            if allowed_columns is not None:
+                table["fields"] = [f for f in table["fields"] if f["name"] in allowed_columns[name]]
+        model_input = build_sqlcoder_input(question, tables, ground_tables=list(tables))
+        sql = generate_sql_ollama(model_input, system=SYSTEM_PROMPT)
+        from pipeline.bigquery_schema import normalize_date_trunc, validate_candidate
+        sql, corrections = normalize_date_trunc(sql)
+        violations = validate_candidate(sql, tables)
+        return {"question": question, "sql": sql, "source": "ollama_generation",
+                "matched_question": None, "similarity": 0.0, "tables_used": list(tables),
+                "corrections": corrections, "schema_valid": not violations, "schema_violations": violations,
+                "model_input": None, "retried": False}
+
     graph = connect_graph()
     tables = retrieve_relevant_tables(graph, question, top_k=top_k)
-
     exemplar_sql, exemplar_score, matched_question = (None, 0.0, None)
     if use_exemplars:
         exemplar_sql, exemplar_score, matched_question = retrieve_exemplar(question)

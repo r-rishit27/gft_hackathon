@@ -7,7 +7,7 @@ serialize schema as DDL -> mannix/defog-llama3-sqlcoder-8b (via a local
 Ollama server) -> SQL string.
 
 Run from the project root:
-    uvicorn app:app --host 0.0.0.0 --port 8000
+    uvicorn app:app --host 127.0.0.1 --port 8000
 
 Then:
     POST /generate-sql   {"question": "..."}
@@ -53,7 +53,7 @@ app.add_middleware(
 
 
 class QuestionRequest(BaseModel):
-    question: str = Field(..., min_length=1, description="Natural-language question about the AML data")
+    question: str = Field(..., min_length=1, max_length=2000, description="Natural-language question about the AML data")
     with_system_prompt: bool = Field(
         False, description="Prepend the business-analyst/read-only-SQL system prompt to the model input"
     )
@@ -74,6 +74,8 @@ class QuestionRequest(BaseModel):
         "for invalid answers -- opt-in only, may still help on real questions where the true table/"
         "column fell outside the first attempt's retrieved subset.",
     )
+    execution_mode: bool = False
+    allowed_columns: dict[str, list[str]] | None = None
 
 
 class Correction(BaseModel):
@@ -111,9 +113,11 @@ def generate_sql(request: QuestionRequest):
             use_exemplars=request.use_exemplars,
             ground_tables=request.ground_tables,
             retry_on_invalid=request.retry_on_invalid,
+            execution_mode=request.execution_mode,
+            allowed_columns=request.allowed_columns,
         )
     except Exception as exc:  # noqa: BLE001 - surface pipeline errors to the caller
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=503, detail="Model generation unavailable; check local service logs.") from exc
 
     return QuestionResponse(
         question=outcome["question"],
@@ -133,7 +137,14 @@ def generate_sql(request: QuestionRequest):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "ollama_ready": app_state["ollama_ready"]}
+    ready = app_state["ollama_ready"]
+    try:
+        pipeline.load_model()
+    except Exception:
+        ready = False
+    return {"status": "ok", "ollama_ready": ready,
+            "model": pipeline.OLLAMA_MODEL, "backend": pipeline.MODEL_BACKEND,
+            "schema_backend": pipeline.SCHEMA_BACKEND}
 
 
 # Serve the chat frontend at /ui (mounted last so it doesn't shadow the API routes above).

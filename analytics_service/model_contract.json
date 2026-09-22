@@ -1,0 +1,1073 @@
+{
+  "contract_version": 1,
+  "dialect": "GoogleSQL",
+  "synthetic_only": true,
+  "definition_status": "starter definitions; pending banking domain-owner approval",
+  "schema": {
+    "version": "50b86516f0c7b31f5a37f0d2df265cd7ec0af9b4b8d926e465e92b3243be5ee6",
+    "tables": {
+      "Party": {
+        "fields": [
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "validity_start_time",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "sql_type": "TIMESTAMP"
+          },
+          {
+            "name": "is_entity_deleted",
+            "type": "BOOL",
+            "mode": "NULLABLE",
+            "sql_type": "BOOL",
+            "allowed_enum_values": [
+              false,
+              true
+            ]
+          },
+          {
+            "name": "source_system",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "type",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "COMPANY",
+              "CONSUMER"
+            ]
+          },
+          {
+            "name": "name",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "addresses",
+            "type": "RECORD",
+            "mode": "REPEATED",
+            "sql_type": "ARRAY<STRUCT<address_line STRING, street STRING, building_number STRING, post_office_box STRING, post_code STRING, town STRING, subregion STRING, region_code STRING>>",
+            "fields": [
+              {
+                "name": "address_line",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "street",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "building_number",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "post_office_box",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "post_code",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "town",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "subregion",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "region_code",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              }
+            ]
+          },
+          {
+            "name": "birth_date",
+            "type": "DATE",
+            "mode": "NULLABLE",
+            "sql_type": "DATE"
+          },
+          {
+            "name": "establishment_date",
+            "type": "DATE",
+            "mode": "NULLABLE",
+            "sql_type": "DATE"
+          },
+          {
+            "name": "occupation",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "gender",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "nationalities",
+            "type": "RECORD",
+            "mode": "REPEATED",
+            "sql_type": "ARRAY<STRUCT<region_code STRING>>",
+            "fields": [
+              {
+                "name": "region_code",
+                "type": "STRING",
+                "mode": "REQUIRED",
+                "sql_type": "STRING"
+              }
+            ]
+          },
+          {
+            "name": "residencies",
+            "type": "RECORD",
+            "mode": "REPEATED",
+            "sql_type": "ARRAY<STRUCT<region_code STRING>>",
+            "fields": [
+              {
+                "name": "region_code",
+                "type": "STRING",
+                "mode": "REQUIRED",
+                "sql_type": "STRING"
+              }
+            ]
+          },
+          {
+            "name": "exit_date",
+            "type": "DATE",
+            "mode": "NULLABLE",
+            "sql_type": "DATE"
+          },
+          {
+            "name": "join_date",
+            "type": "DATE",
+            "mode": "NULLABLE",
+            "sql_type": "DATE"
+          },
+          {
+            "name": "assets_value_range",
+            "type": "RECORD",
+            "mode": "NULLABLE",
+            "sql_type": "STRUCT<start_amount STRUCT<currency_code STRING, units INT64, nanos INT64>, end_amount STRUCT<currency_code STRING, units INT64, nanos INT64>>",
+            "fields": [
+              {
+                "name": "start_amount",
+                "type": "RECORD",
+                "mode": "NULLABLE",
+                "sql_type": "STRUCT<currency_code STRING, units INT64, nanos INT64>",
+                "fields": [
+                  {
+                    "name": "currency_code",
+                    "type": "STRING",
+                    "mode": "REQUIRED",
+                    "sql_type": "STRING"
+                  },
+                  {
+                    "name": "units",
+                    "type": "INT64",
+                    "mode": "REQUIRED",
+                    "sql_type": "INT64"
+                  },
+                  {
+                    "name": "nanos",
+                    "type": "INT64",
+                    "mode": "REQUIRED",
+                    "sql_type": "INT64"
+                  }
+                ]
+              },
+              {
+                "name": "end_amount",
+                "type": "RECORD",
+                "mode": "NULLABLE",
+                "sql_type": "STRUCT<currency_code STRING, units INT64, nanos INT64>",
+                "fields": [
+                  {
+                    "name": "currency_code",
+                    "type": "STRING",
+                    "mode": "REQUIRED",
+                    "sql_type": "STRING"
+                  },
+                  {
+                    "name": "units",
+                    "type": "INT64",
+                    "mode": "REQUIRED",
+                    "sql_type": "INT64"
+                  },
+                  {
+                    "name": "nanos",
+                    "type": "INT64",
+                    "mode": "REQUIRED",
+                    "sql_type": "INT64"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "phone_numbers",
+            "type": "RECORD",
+            "mode": "REPEATED",
+            "sql_type": "ARRAY<STRUCT<type STRING, phone STRING, obfuscated_phone STRING, region_code STRING>>",
+            "fields": [
+              {
+                "name": "type",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING",
+                "allowed_enum_values": [
+                  "PERSONAL",
+                  "CORPORATE"
+                ]
+              },
+              {
+                "name": "phone",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "obfuscated_phone",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "region_code",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              }
+            ]
+          },
+          {
+            "name": "email_addresses",
+            "type": "RECORD",
+            "mode": "REPEATED",
+            "sql_type": "ARRAY<STRUCT<type STRING, email STRING, obfuscated_email STRING, region_code STRING>>",
+            "fields": [
+              {
+                "name": "type",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING",
+                "allowed_enum_values": [
+                  "PERSONAL",
+                  "CORPORATE"
+                ]
+              },
+              {
+                "name": "email",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "obfuscated_email",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "region_code",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              }
+            ]
+          },
+          {
+            "name": "education_level_code",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "LESS_THAN_PRIMARY_EDUCATION",
+              "PRIMARY_EDUCATION",
+              "LOWER_SECONDARY_EDUCATION",
+              "UPPER_SECONDARY_EDUCATION",
+              "POST_SECONDARY_NON_TERTIARY_EDUCATION",
+              "SHORT_CYCLE_TERTIARY_EDUCATION",
+              "BACHELORS_OR_EQUIVALENT",
+              "MASTERS_OR_EQUIVALENT",
+              "DOCTORAL_OR_EQUIVALENT",
+              "NOT_ELSEWHERE_CLASSIFIED",
+              "UNKNOWN"
+            ]
+          }
+        ]
+      },
+      "AccountPartyLink": {
+        "fields": [
+          {
+            "name": "account_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "validity_start_time",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "sql_type": "TIMESTAMP"
+          },
+          {
+            "name": "is_entity_deleted",
+            "type": "BOOL",
+            "mode": "NULLABLE",
+            "sql_type": "BOOL",
+            "allowed_enum_values": [
+              false,
+              true
+            ]
+          },
+          {
+            "name": "role",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "PRIMARY_HOLDER",
+              "SECONDARY_HOLDER",
+              "SUPPLEMENTARY_HOLDER"
+            ]
+          },
+          {
+            "name": "source_system",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          }
+        ]
+      },
+      "Transaction": {
+        "fields": [
+          {
+            "name": "transaction_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "validity_start_time",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "sql_type": "TIMESTAMP"
+          },
+          {
+            "name": "is_entity_deleted",
+            "type": "BOOL",
+            "mode": "NULLABLE",
+            "sql_type": "BOOL",
+            "allowed_enum_values": [
+              false,
+              true
+            ]
+          },
+          {
+            "name": "source_system",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "type",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "WIRE",
+              "CASH",
+              "CHECK",
+              "CARD",
+              "OTHER",
+              "CRYPTO"
+            ]
+          },
+          {
+            "name": "direction",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "DEBIT",
+              "CREDIT"
+            ]
+          },
+          {
+            "name": "account_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "counterparty_account",
+            "type": "RECORD",
+            "mode": "NULLABLE",
+            "sql_type": "STRUCT<account_id STRING, counterparty_name STRING, addresses ARRAY<STRUCT<address_line STRING, street STRING, building_number STRING, post_office_box STRING, post_code STRING, town STRING, subregion STRING, region_code STRING>>, region_code STRING>",
+            "fields": [
+              {
+                "name": "account_id",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "counterparty_name",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "addresses",
+                "type": "RECORD",
+                "mode": "REPEATED",
+                "sql_type": "ARRAY<STRUCT<address_line STRING, street STRING, building_number STRING, post_office_box STRING, post_code STRING, town STRING, subregion STRING, region_code STRING>>",
+                "fields": [
+                  {
+                    "name": "address_line",
+                    "type": "STRING",
+                    "mode": "NULLABLE",
+                    "sql_type": "STRING"
+                  },
+                  {
+                    "name": "street",
+                    "type": "STRING",
+                    "mode": "NULLABLE",
+                    "sql_type": "STRING"
+                  },
+                  {
+                    "name": "building_number",
+                    "type": "STRING",
+                    "mode": "NULLABLE",
+                    "sql_type": "STRING"
+                  },
+                  {
+                    "name": "post_office_box",
+                    "type": "STRING",
+                    "mode": "NULLABLE",
+                    "sql_type": "STRING"
+                  },
+                  {
+                    "name": "post_code",
+                    "type": "STRING",
+                    "mode": "NULLABLE",
+                    "sql_type": "STRING"
+                  },
+                  {
+                    "name": "town",
+                    "type": "STRING",
+                    "mode": "NULLABLE",
+                    "sql_type": "STRING"
+                  },
+                  {
+                    "name": "subregion",
+                    "type": "STRING",
+                    "mode": "NULLABLE",
+                    "sql_type": "STRING"
+                  },
+                  {
+                    "name": "region_code",
+                    "type": "STRING",
+                    "mode": "NULLABLE",
+                    "sql_type": "STRING"
+                  }
+                ]
+              },
+              {
+                "name": "region_code",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              }
+            ]
+          },
+          {
+            "name": "book_time",
+            "type": "TIMESTAMP",
+            "mode": "NULLABLE",
+            "sql_type": "TIMESTAMP"
+          },
+          {
+            "name": "normalized_booked_amount",
+            "type": "RECORD",
+            "mode": "REQUIRED",
+            "sql_type": "STRUCT<currency_code STRING, units INT64, nanos INT64>",
+            "fields": [
+              {
+                "name": "currency_code",
+                "type": "STRING",
+                "mode": "REQUIRED",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "units",
+                "type": "INT64",
+                "mode": "REQUIRED",
+                "sql_type": "INT64"
+              },
+              {
+                "name": "nanos",
+                "type": "INT64",
+                "mode": "REQUIRED",
+                "sql_type": "INT64"
+              }
+            ]
+          },
+          {
+            "name": "ip_address",
+            "type": "RECORD",
+            "mode": "NULLABLE",
+            "sql_type": "STRUCT<type STRING, ip STRING, obfuscated_ip STRING, region_code STRING, is_vpn BOOL>",
+            "fields": [
+              {
+                "name": "type",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING",
+                "allowed_enum_values": [
+                  "V4",
+                  "V6"
+                ]
+              },
+              {
+                "name": "ip",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "obfuscated_ip",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "region_code",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "is_vpn",
+                "type": "BOOL",
+                "mode": "NULLABLE",
+                "sql_type": "BOOL",
+                "allowed_enum_values": [
+                  false,
+                  true
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "InteractionEvent": {
+        "fields": [
+          {
+            "name": "interaction_event_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "account_id",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "type",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "LOGIN",
+              "PAYMENT_METHOD_ADDED",
+              "KYC_CHANGE",
+              "PASSWORD_CHANGE",
+              "OTHER"
+            ]
+          },
+          {
+            "name": "event_time",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "sql_type": "TIMESTAMP"
+          },
+          {
+            "name": "ip_address",
+            "type": "RECORD",
+            "mode": "NULLABLE",
+            "sql_type": "STRUCT<type STRING, ip STRING, obfuscated_ip STRING, region_code STRING, is_vpn BOOL>",
+            "fields": [
+              {
+                "name": "type",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING",
+                "allowed_enum_values": [
+                  "V4",
+                  "V6"
+                ]
+              },
+              {
+                "name": "ip",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "obfuscated_ip",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "region_code",
+                "type": "STRING",
+                "mode": "NULLABLE",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "is_vpn",
+                "type": "BOOL",
+                "mode": "NULLABLE",
+                "sql_type": "BOOL",
+                "allowed_enum_values": [
+                  false,
+                  true
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "RiskCaseEvent": {
+        "fields": [
+          {
+            "name": "risk_case_event_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "event_time",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "sql_type": "TIMESTAMP"
+          },
+          {
+            "name": "type",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "AML_SUSPICIOUS_ACTIVITY_START",
+              "AML_SUSPICIOUS_ACTIVITY_END",
+              "AML_PROCESS_START",
+              "AML_PROCESS_END",
+              "AML_ALERT_GOOGLE",
+              "AML_ALERT_LEGACY",
+              "AML_ALERT_ADHOC",
+              "AML_ALERT_EXPLORATORY",
+              "AML_ALERT_EXTERNAL",
+              "AML_SAR",
+              "AML_EXIT"
+            ]
+          },
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "risk_typology_measurements",
+            "type": "RECORD",
+            "mode": "REPEATED",
+            "sql_type": "ARRAY<STRUCT<risk_typology_id STRING>>",
+            "fields": [
+              {
+                "name": "risk_typology_id",
+                "type": "STRING",
+                "mode": "REQUIRED",
+                "sql_type": "STRING"
+              }
+            ]
+          },
+          {
+            "name": "risk_case_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          }
+        ]
+      },
+      "PartySupplementaryData": {
+        "fields": [
+          {
+            "name": "party_supplementary_data_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "validity_start_time",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "sql_type": "TIMESTAMP"
+          },
+          {
+            "name": "is_entity_deleted",
+            "type": "BOOL",
+            "mode": "NULLABLE",
+            "sql_type": "BOOL",
+            "allowed_enum_values": [
+              false,
+              true
+            ]
+          },
+          {
+            "name": "source_system",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "supplementary_data_payload",
+            "type": "RECORD",
+            "mode": "REQUIRED",
+            "sql_type": "STRUCT<value FLOAT64>",
+            "fields": [
+              {
+                "name": "value",
+                "type": "FLOAT64",
+                "mode": "REQUIRED",
+                "sql_type": "FLOAT64"
+              }
+            ]
+          }
+        ]
+      },
+      "RetailPartiesRegistration": {
+        "fields": [
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "party_size",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          }
+        ]
+      },
+      "CommercialPartiesRegistration": {
+        "fields": [
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "party_size",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "SMALL",
+              "LARGE"
+            ]
+          }
+        ]
+      },
+      "RiskScores": {
+        "fields": [
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "risk_period_end_time",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "sql_type": "TIMESTAMP"
+          },
+          {
+            "name": "risk_score",
+            "type": "FLOAT64",
+            "mode": "REQUIRED",
+            "sql_type": "FLOAT64"
+          }
+        ]
+      },
+      "Explainability": {
+        "fields": [
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "risk_period_end_time",
+            "type": "TIMESTAMP",
+            "mode": "REQUIRED",
+            "sql_type": "TIMESTAMP"
+          },
+          {
+            "name": "attributions",
+            "type": "RECORD",
+            "mode": "REPEATED",
+            "sql_type": "ARRAY<STRUCT<feature STRING, attribution FLOAT64>>",
+            "fields": [
+              {
+                "name": "feature",
+                "type": "STRING",
+                "mode": "REQUIRED",
+                "sql_type": "STRING"
+              },
+              {
+                "name": "attribution",
+                "type": "FLOAT64",
+                "mode": "REQUIRED",
+                "sql_type": "FLOAT64"
+              }
+            ]
+          }
+        ]
+      },
+      "RegisteredPartiesExport": {
+        "fields": [
+          {
+            "name": "party_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "party_size",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "SMALL",
+              "LARGE"
+            ]
+          },
+          {
+            "name": "earliest_remove_time",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "party_with_prediction_intent",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "registration_or_uptier_time",
+            "type": "STRING",
+            "mode": "NULLABLE",
+            "sql_type": "STRING"
+          }
+        ]
+      },
+      "ExportedMetadata": {
+        "fields": [
+          {
+            "name": "resource_type",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "EngineConfig",
+              "Model",
+              "BacktestResults",
+              "PredictionResults"
+            ]
+          },
+          {
+            "name": "resource_id",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING"
+          },
+          {
+            "name": "name",
+            "type": "STRING",
+            "mode": "REQUIRED",
+            "sql_type": "STRING",
+            "allowed_enum_values": [
+              "ExpectedRecallPostTuning",
+              "ExpectedRecallPreTuning",
+              "Importance",
+              "Missingness",
+              "ObservedRecallValues",
+              "ObservedRecallValuesPerTypology",
+              "Skew"
+            ]
+          },
+          {
+            "name": "value",
+            "type": "JSON",
+            "mode": "REQUIRED",
+            "sql_type": "JSON"
+          }
+        ]
+      }
+    }
+  },
+  "metrics": [
+    {
+      "id": "transaction_trend",
+      "question": "Show monthly transaction volume and value by direction",
+      "aliases": [
+        "monthly transaction volume",
+        "transaction volume and value trend"
+      ],
+      "sql": "\nSELECT DATE_TRUNC(DATE(book_time), MONTH) AS month, direction,\n       COUNT(*) AS transaction_count,\n       SUM(CAST(normalized_booked_amount.units AS NUMERIC)\n           + CAST(normalized_booked_amount.nanos AS NUMERIC) / 1000000000) AS amount_usd\nFROM Transaction\nWHERE COALESCE(is_entity_deleted, FALSE) = FALSE\nGROUP BY month, direction\nORDER BY month, direction\n",
+      "units": {
+        "transaction_count": "transactions",
+        "amount_usd": "USD"
+      },
+      "chart": "line",
+      "dimension": "month",
+      "series": "direction"
+    },
+    {
+      "id": "sar_volume",
+      "question": "How many cases had SAR filings each month?",
+      "aliases": [
+        "monthly sar volume",
+        "sar filing volume by month"
+      ],
+      "sql": "\nSELECT DATE_TRUNC(DATE(event_time), MONTH) AS month,\n       COUNT(DISTINCT risk_case_id) AS sar_cases\nFROM RiskCaseEvent WHERE type = 'AML_SAR'\nGROUP BY month ORDER BY month\n",
+      "units": {
+        "sar_cases": "cases"
+      },
+      "chart": "bar",
+      "dimension": "month",
+      "series": null
+    },
+    {
+      "id": "case_backlog",
+      "question": "Show open and closed investigation cases",
+      "aliases": [
+        "case backlog",
+        "open versus closed cases"
+      ],
+      "sql": "\nWITH status AS (\n SELECT risk_case_id,\n MAX(IF(type = 'AML_PROCESS_START', event_time, NULL)) AS started_at,\n MAX(IF(type = 'AML_PROCESS_END', event_time, NULL)) AS ended_at\n FROM RiskCaseEvent GROUP BY risk_case_id\n)\nSELECT COUNTIF(started_at IS NOT NULL AND (ended_at IS NULL OR started_at > ended_at)) AS open_cases,\n       COUNTIF(started_at IS NOT NULL AND ended_at >= started_at) AS closed_cases\nFROM status\n",
+      "units": {
+        "open_cases": "cases",
+        "closed_cases": "cases"
+      },
+      "chart": "kpi",
+      "dimension": null,
+      "series": null
+    },
+    {
+      "id": "risk_trend",
+      "question": "Show the average risk score by reporting period",
+      "aliases": [
+        "average risk score trend",
+        "risk score trend"
+      ],
+      "sql": "\nSELECT risk_period_end_time AS period, AVG(risk_score) AS average_risk_score,\n       COUNT(DISTINCT IF(risk_score IS NOT NULL, party_id, NULL)) AS scored_customers\nFROM RiskScores GROUP BY period ORDER BY period\n",
+      "units": {
+        "average_risk_score": "score (0-1)",
+        "scored_customers": "customers"
+      },
+      "chart": "line",
+      "dimension": "period",
+      "series": null
+    },
+    {
+      "id": "customer_count",
+      "question": "How many active customers were there at the end of August 2026?",
+      "aliases": [
+        "active customers at dataset end",
+        "latest active customer count"
+      ],
+      "sql": "\nWITH latest AS (\n SELECT party_id, is_entity_deleted, exit_date, join_date,\n ROW_NUMBER() OVER (PARTITION BY party_id ORDER BY validity_start_time DESC) AS row_num\n FROM Party WHERE validity_start_time < TIMESTAMP('2026-09-01 00:00:00+00')\n)\nSELECT COUNT(*) AS active_customers FROM latest\nWHERE row_num = 1 AND COALESCE(is_entity_deleted, FALSE) = FALSE\nAND join_date < DATE('2026-09-01')\nAND (exit_date IS NULL OR exit_date >= DATE('2026-09-01'))\n",
+      "units": {
+        "active_customers": "customers"
+      },
+      "chart": "kpi",
+      "dimension": null,
+      "series": null
+    },
+    {
+      "id": "alert_conversion",
+      "question": "What proportion of alerted cases had a SAR?",
+      "aliases": [
+        "alert to sar conversion rate",
+        "alert to sar rate"
+      ],
+      "sql": "\nWITH alerts AS (\n SELECT DISTINCT risk_case_id FROM RiskCaseEvent\n WHERE type IN ('AML_ALERT_GOOGLE', 'AML_ALERT_LEGACY', 'AML_ALERT_ADHOC',\n                'AML_ALERT_EXPLORATORY', 'AML_ALERT_EXTERNAL')\n), sars AS (\n SELECT DISTINCT risk_case_id FROM RiskCaseEvent WHERE type = 'AML_SAR'\n)\nSELECT COUNT(DISTINCT a.risk_case_id) AS alerted_cases,\nCOUNT(DISTINCT s.risk_case_id) AS sar_cases,\nSAFE_DIVIDE(COUNT(DISTINCT s.risk_case_id), COUNT(DISTINCT a.risk_case_id)) AS conversion_rate\nFROM alerts a LEFT JOIN sars s ON a.risk_case_id = s.risk_case_id\n",
+      "units": {
+        "alerted_cases": "cases",
+        "sar_cases": "cases",
+        "conversion_rate": "ratio"
+      },
+      "chart": "kpi",
+      "dimension": null,
+      "series": null
+    }
+  ]
+}

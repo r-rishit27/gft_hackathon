@@ -17,3 +17,11 @@ finetuned_model_test/
 
 # editor/tooling
 .claude/
+
+# Local credentials and generated dataset copies (included in release archive)
+_env
+.DS_Store
+dataset/data/
+dataset/companion/
+dataset/baseline/data/
+dataset/baseline/companion/

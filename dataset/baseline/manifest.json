@@ -1,0 +1,94 @@
+{
+  "project": "gen-lang-client-0810987953",
+  "dataset": "aml_demo",
+  "location": "asia-south1",
+  "seed": 20260919,
+  "synthetic": true,
+  "start": "2026-01-01T00:00:00Z",
+  "end_exclusive": "2026-09-01T00:00:00Z",
+  "reporting_currency": "USD",
+  "countries": {
+    "HK": 143,
+    "GB": 143,
+    "IN": 143,
+    "TW": 143,
+    "FR": 143,
+    "PL": 143,
+    "IE": 142
+  },
+  "tables": {
+    "Party": {
+      "rows": 1140,
+      "bytes": 1057634,
+      "sha256": "35bd482a1e8d50aacff5507989e79cfb9f701c971c512cfe2d9d6c108ab9a900"
+    },
+    "AccountPartyLink": {
+      "rows": 1000,
+      "bytes": 178000,
+      "sha256": "0556116a9698e60ec91bf4c708549ccb9146f077d5d5cbd0adb16202beda9df8"
+    },
+    "Transaction": {
+      "rows": 50000,
+      "bytes": 26351176,
+      "sha256": "dc14a90cbc5c6f0c366b6120a2e99f8dd8a791e3ff4d3f294c3cedf1bfe6eac6"
+    },
+    "InteractionEvent": {
+      "rows": 12000,
+      "bytes": 2622840,
+      "sha256": "4aaf1f835526fc48c824db1691a6f2fa1a0fbae1be88dee49e38295494c9aeed"
+    },
+    "RiskCaseEvent": {
+      "rows": 565,
+      "bytes": 121591,
+      "sha256": "b8e2e635922495592ab6da85eeba60427d0e05ca651ba14e082c87da10748c01"
+    },
+    "PartySupplementaryData": {
+      "rows": 2000,
+      "bytes": 470000,
+      "sha256": "747b07cc3812735d787b1bd14038706b1bbaa342a88276823e2b94635cda914d"
+    },
+    "RetailPartiesRegistration": {
+      "rows": 1000,
+      "bytes": 43000,
+      "sha256": "996dc3cc95c6e2d3aa437a3d9ff448ce415b861be37b9f46abe81562601353ea"
+    },
+    "CommercialPartiesRegistration": {
+      "rows": 0,
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "RiskScores": {
+      "rows": 7566,
+      "bytes": 702859,
+      "sha256": "9262137f9059a5bd6d72a9c11d5dde5f4f166f61d7e498d2673910e07daad78a"
+    },
+    "Explainability": {
+      "rows": 7566,
+      "bytes": 2063087,
+      "sha256": "30adfc4531380b47c3fd623a12dce83a9f5db00e4add6c8f3735077ab1f234af"
+    },
+    "RegisteredPartiesExport": {
+      "rows": 1000,
+      "bytes": 180000,
+      "sha256": "9b2d2e3f5cd213aefc4ae706ea5bd474790e686bfbb5c66714fd3c3d58ee6943"
+    },
+    "ExportedMetadata": {
+      "rows": 16,
+      "bytes": 4120,
+      "sha256": "fa466e5139f3e1ac812449045342c9b6915d4f6cd39067745a6317be5b774273"
+    }
+  },
+  "schema_decisions": [
+    "Party.civil_status_code omitted: optional field is STRUCT in supplied file but STRING in official schema; pending confirmation.",
+    "AccountPartyLink.role: retaining supplied REQUIRED mode (official NULLABLE); generated values satisfy both.",
+    "Transaction.normalized_booked_amount: retaining supplied REQUIRED mode (official NULLABLE); generated values satisfy both."
+  ],
+  "actual_aml_ai_ready": false,
+  "limitations": [
+    "Eight months is insufficient for full AML AI training/tuning; verify engine-specific duration, location, labels, registration and service access before use.",
+    "Outputs and metadata are simulated, not actual AML AI results or measured model performance.",
+    "CommercialPartiesRegistration is intentionally empty for retail-only scope.",
+    "Local-currency details use fictional FX rates and live in companion files, not the official input tables.",
+    "Optional civil_status_code omitted pending schema conflict decision."
+  ]
+}

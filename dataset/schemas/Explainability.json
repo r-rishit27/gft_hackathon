@@ -1,0 +1,34 @@
+[
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "Unique party identifier",
+    "type": "STRING"
+  },
+  {
+    "name": "risk_period_end_time",
+    "mode": "REQUIRED",
+    "description": "Period end timestamp in dataset timezone",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "attributions",
+    "mode": "REPEATED",
+    "description": "Record of feature families and their attribution value",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "feature",
+        "mode": "REQUIRED",
+        "description": "Name of feature family",
+        "type": "STRING"
+      },
+      {
+        "name": "attribution",
+        "mode": "REQUIRED",
+        "description": "Feature family's attribution score",
+        "type": "FLOAT64"
+      }
+    ]
+  }
+]

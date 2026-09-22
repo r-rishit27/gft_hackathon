@@ -1,0 +1,36 @@
+{
+  "status": "passed",
+  "checks": 3703144,
+  "row_counts": {
+    "Party": 1140,
+    "AccountPartyLink": 1000,
+    "Transaction": 50000,
+    "InteractionEvent": 12000,
+    "RiskCaseEvent": 565,
+    "PartySupplementaryData": 2000,
+    "RetailPartiesRegistration": 1000,
+    "CommercialPartiesRegistration": 0,
+    "RiskScores": 7566,
+    "Explainability": 7566,
+    "RegisteredPartiesExport": 1000,
+    "ExportedMetadata": 16
+  },
+  "event_counts": {
+    "AML_SUSPICIOUS_ACTIVITY_START": 90,
+    "AML_SUSPICIOUS_ACTIVITY_END": 90,
+    "AML_ALERT_GOOGLE": 24,
+    "AML_PROCESS_START": 120,
+    "AML_SAR": 45,
+    "AML_PROCESS_END": 80,
+    "AML_EXIT": 20,
+    "AML_ALERT_LEGACY": 24,
+    "AML_ALERT_ADHOC": 24,
+    "AML_ALERT_EXPLORATORY": 24,
+    "AML_ALERT_EXTERNAL": 24
+  },
+  "cases": 120,
+  "closed_cases": 80,
+  "open_cases": 40,
+  "sar_cases": 45,
+  "transaction_value_usd": "25918566.86"
+}

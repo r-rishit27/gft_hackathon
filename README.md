@@ -6,6 +6,33 @@ numbers, just a query you can review and run yourself.
 
 See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results and known limitations.
 
+## BigQuery demo dataset
+
+The synthetic dataset is deployed at `gen-lang-client-0810987953.aml_demo`
+in `asia-south1`: 1,000 retail customers, 50,000 transactions and 12 tables.
+Hong Kong identifiers use `HASE_HK`; the other countries use `HSBC_<COUNTRY>`.
+
+- [Deployed dataset schema, enums and observed values](dataset/aml_data_model_schema.json)
+- [Dataset documentation and reproducible loading instructions](dataset/README.md)
+- [Complete data package, including the migration baseline](dataset/releases/aml_dataset_v2_20260919.zip)
+- [Cloud migration verification](dataset/reports/migration_cloud.json)
+
+The enriched schema under `dataset/` documents the actual BigQuery data. The app's
+existing `schema/aml_data_model_schema.json` remains its current schema source;
+aligning the chatbot and implementing query execution are the next integration step.
+All data and AML outputs in this package are simulated. This branch adds dataset
+artifacts only; it does not connect the chatbot to BigQuery.
+
+To restore ignored data files from a fresh checkout, run from the repository root:
+
+```sh
+unzip -n dataset/releases/aml_dataset_v2_20260919.zip -d .
+python3 -m unittest discover -s dataset -p 'test_*.py'
+python3 dataset/check_naming.py
+```
+
+The archive includes source copies; `-n` preserves the current checked-in files.
+
 ---
 
 ## Architecture

@@ -1,0 +1,20 @@
+[
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "Unique party ID string",
+    "type": "STRING"
+  },
+  {
+    "name": "risk_period_end_time",
+    "mode": "REQUIRED",
+    "description": "The end of the target period, in the timezone of the dataset",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "risk_score",
+    "mode": "REQUIRED",
+    "description": "Prediction value between 0 and 1; higher score means higher risk",
+    "type": "FLOAT64"
+  }
+]

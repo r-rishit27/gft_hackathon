@@ -1,0 +1,46 @@
+[
+  {
+    "name": "party_supplementary_data_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Identifier for the supplementary data field. This ID should match between Datasets used for the same modeling process (for example, for tuning, training, predict and backtesting steps). IDs may use letters, numbers, and underscores, matching the regular expression [a-zA-Z0-9_]. The first character should be a letter or number, matching the regular expression [a-zA-Z0-9]. With engine versions released prior to 2024-03-01 these IDs must use values from 1 to 100.",
+    "type": "STRING"
+  },
+  {
+    "name": "validity_start_time",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Timestamp when this record became valid.",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "is_entity_deleted",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: If set to TRUE, indicates this supplementary data field no longer has a value for this Party.",
+    "type": "BOOL"
+  },
+  {
+    "name": "source_system",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality.",
+    "type": "STRING"
+  },
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: ID of the Party to which this value of this supplementary data field refers.",
+    "type": "STRING"
+  },
+  {
+    "name": "supplementary_data_payload",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Payload of the supplementary data; only supports float64 values.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "value",
+        "mode": "REQUIRED",
+        "description": "MANDATORY: The value of this supplementary data field. Type: float64.",
+        "type": "FLOAT64"
+      }
+    ]
+  }
+]

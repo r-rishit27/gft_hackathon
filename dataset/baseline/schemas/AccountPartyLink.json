@@ -1,0 +1,38 @@
+[
+  {
+    "name": "account_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Unique ID for this Account.",
+    "type": "STRING"
+  },
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Unique ID for this Party in the Party table.",
+    "type": "STRING"
+  },
+  {
+    "name": "validity_start_time",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Timestamp when the information of this row was in the correct state for the entity.",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "is_entity_deleted",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: If set to TRUE, indicates the link is no longer present.",
+    "type": "BOOL"
+  },
+  {
+    "name": "role",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Describes how the party is related to the account. In particular, capturing primary and secondary account holders. Each Account should have at least one PRIMARY_HOLDER at any given time. Do not use NULL for this field. Supported values: PRIMARY_HOLDER - a party designated as the main (or joint main) holder of the account. SECONDARY_HOLDER - another party who is not the main account holder but with similar access and similar level of responsibility. SUPPLEMENTARY_HOLDER - any other party with either significantly reduced access or significantly reduced responsibility for the account. One of: [PRIMARY_HOLDER:SECONDARY_HOLDER:SUPPLEMENTARY_HOLDER].",
+    "type": "STRING"
+  },
+  {
+    "name": "source_system",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality.",
+    "type": "STRING"
+  }
+]

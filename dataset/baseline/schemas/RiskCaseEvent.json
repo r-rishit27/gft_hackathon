@@ -1,0 +1,46 @@
+[
+  {
+    "name": "risk_case_event_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Unique ID for this event.",
+    "type": "STRING"
+  },
+  {
+    "name": "event_time",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Timestamp when this event occurs.",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "type",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Type of risk case event. Only AML events are supported. The minimum requirement for the AML product to work is to provide a single AML_PROCESS_START, AML_PROCESS_END and where applicable AML_EXIT event per Party and risk_case_id. It is strongly recommended to also include AML_SUSPICIOUS_ACTIVITY_START and AML_SUSPICIOUS_ACTIVITY_END events for best model performance. One of: [AML_SUSPICIOUS_ACTIVITY_START:AML_SUSPICIOUS_ACTIVITY_END:AML_PROCESS_START:AML_PROCESS_END:AML_ALERT_GOOGLE:AML_ALERT_LEGACY:AML_ALERT_ADHOC:AML_ALERT_EXPLORATORY:AML_ALERT_EXTERNAL:AML_SAR:AML_EXIT].",
+    "type": "STRING"
+  },
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: The ID in the Party table of the Party that is the subject of this investigation process.",
+    "type": "STRING"
+  },
+  {
+    "name": "risk_typology_measurements",
+    "mode": "REPEATED",
+    "description": "RECOMMENDED: Information about the measured risks for this event. For SARs and exits, these are the risks identified in the investigation process and justifying the SAR or exit. Typologies specified for any risk case event resulting in an exit are used in measuring risk coverage.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "risk_typology_id",
+        "mode": "REQUIRED",
+        "description": "MANDATORY: Unique ID of the risk type being measured.",
+        "type": "STRING"
+      }
+    ]
+  },
+  {
+    "name": "risk_case_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: The ID of the overall case to which this event belongs.",
+    "type": "STRING"
+  }
+]

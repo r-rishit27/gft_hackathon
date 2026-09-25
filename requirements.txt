@@ -1,4 +1,6 @@
 -r analytics_service/requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.14.0+cpu
 python-dotenv==1.2.3
 falkordb==1.7.1
 sentence-transformers==5.7.0

@@ -342,7 +342,7 @@
   // Standalone Vercel deployment: the backend lives on a different origin
   // (Render), not window.location.origin. Set via ?api=<url> query param,
   // localStorage override, or the RENDER_API_BASE default below.
-  const RENDER_API_BASE = "https://aml-kpi-copilot.onrender.com";
+  const RENDER_API_BASE = "https://aml-model-backend.onrender.com";
   const params = new URLSearchParams(window.location.search);
   const API_BASE = params.get("api") || localStorage.getItem("api_base") || RENDER_API_BASE;
   if (params.get("api")) localStorage.setItem("api_base", params.get("api"));

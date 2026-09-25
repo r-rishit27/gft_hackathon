@@ -13,6 +13,19 @@ Sign in with one of the three demo roles (`monitoring`, `investigation` or `admi
 
 ![Sign-in page: username and password fields for the AML Analytics login](docs/images/analytics-login.jpg)
 
+| Role | Permitted tables (via authorized BigQuery views) | Countries |
+| --- | --- | --- |
+| `monitoring` | Party, AccountPartyLink, Transaction, InteractionEvent, PartySupplementaryData, RetailPartiesRegistration, CommercialPartiesRegistration | All 7: Hong Kong, United Kingdom, India, Taiwan, France, Poland, Ireland |
+| `investigation` | Party, RiskCaseEvent, RiskScores, Explainability | Same 7 |
+| `admin` | Union of the two roles above (10 distinct tables); no administrative write permissions | Same 7 |
+
+`RegisteredPartiesExport` and `ExportedMetadata` are excluded for every role, including Admin. Each role
+authenticates as its own read-only BigQuery service account (`aml-monitoring-poc`, `aml-investigation-poc`,
+`aml-admin-poc`) with Data Viewer access only on its permitted views — none has direct source-table access,
+and a request cannot supply its own role or table scope. See
+[`docs/ARCHITECTURE.md`'s "analytics_service in Detail"](docs/ARCHITECTURE.md#analytics_service-in-detail)
+for the full access-control write-up.
+
 `/profile` shows the signed-in identity's role, access level, and exactly which tables/countries it can see
 — here, the `investigation` role is limited to Explainability, Party, RiskCaseEvent and RiskScores:
 

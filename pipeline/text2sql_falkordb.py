@@ -618,7 +618,7 @@ def _generate_sql_openai(prompt, system=None):
     resp = _HTTP_SESSION.post(
         "https://api.openai.com/v1/chat/completions",
         headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-        json={"model": OPENAI_FALLBACK_MODEL, "messages": messages, "temperature": 0},
+        json={"model": OPENAI_FALLBACK_MODEL, "messages": messages},
         timeout=int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "60")),
     )
     resp.raise_for_status()

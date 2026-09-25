@@ -6,7 +6,10 @@ name: Keep Render services warm
 
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    # Offset away from round minutes (:00, :10, ...) -- GitHub's own docs
+    # warn schedules landing at the top of the hour / round times are more
+    # likely to be delayed or dropped during high load.
+    - cron: "3,13,23,33,43,53 * * * *"
   workflow_dispatch: {}
 
 jobs:

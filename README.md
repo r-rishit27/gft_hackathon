@@ -338,9 +338,9 @@ python eval/evaluate_text2sql.py --testcases eval/eval_heldout.json --out result
 Both services' full HTTP contracts — every endpoint, request/response schema, auth scheme, and status
 code — are documented as OpenAPI 3.0 specs and viewable as an interactive Swagger UI reference:
 
-**[Browse the API docs](docs/api-reference.html)** (switch between the two services with the tabs at the
-top) — a self-contained page with both specs embedded, so it renders standalone with no build step; open
-it directly in a browser, or serve `docs/` and open it over HTTP.
+**[Browse the API docs](https://aml-api-docs.vercel.app)** (switch between the two services with the tabs
+at the top) — also committed at [`docs/api-reference.html`](docs/api-reference.html), a self-contained page
+with both specs embedded, so it renders standalone with no build step if you'd rather open it directly.
 
 The raw specs are also committed at [`docs/openapi-analytics-service.json`](docs/openapi-analytics-service.json)
 (the public product's full surface: auth, `/query`, workspace, status/metrics) and

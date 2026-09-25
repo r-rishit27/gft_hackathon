@@ -201,6 +201,12 @@ function updateSaveButton() {
   $("save-question").setAttribute("aria-label", $("save-question").title);
 }
 $("question").addEventListener("input", updateSaveButton);
+$("question").addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && !event.shiftKey) {
+    event.preventDefault();
+    if (!$("run").disabled) $("query-form").requestSubmit();
+  }
+});
 $("save-question").addEventListener("click", () => saveQuestion($("question").value, !library.saved.includes($("question").value.trim())));
 $("clear-history").addEventListener("click", async () => {
   const version = generation;

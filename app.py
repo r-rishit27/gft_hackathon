@@ -153,8 +153,13 @@ def health():
     ready = app_state["ollama_ready"]
     try:
         pipeline.load_model()
+        ready = True
     except Exception:
         ready = False
+    # generation_ready reflects whether /generate-sql can actually answer right
+    # now: Ollama being up, or -- if it's not -- the OpenAI fallback having a
+    # key configured, since generate_sql_ollama falls back to it automatically.
     return {"status": "ok", "ollama_ready": ready,
+            "generation_ready": ready or bool(pipeline.OPENAI_API_KEY),
             "model": pipeline.OLLAMA_MODEL, "backend": pipeline.MODEL_BACKEND,
             "schema_backend": pipeline.SCHEMA_BACKEND}

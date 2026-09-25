@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Your profile | AML Analytics</title><link rel="stylesheet" href="/ui/styles.css"><script defer src="/ui/profile.js"></script></head>
+<body>
+  <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">A</span> AML Analytics</div><nav class="main-nav" aria-label="Main navigation"><a href="/ui/">Analysis</a><a href="/profile" aria-current="page">Profile</a></nav><span class="badge">SYNTHETIC DATA</span></header>
+  <main><section class="heading"><div><p class="eyebrow">ACCOUNT &amp; PERMISSIONS</p><h1>Your profile</h1></div><button id="sign-out" type="button">Sign out</button></section><div id="message" role="status" aria-live="polite"></div>
+    <section id="profile-content" hidden><dl class="profile-identity"><div><dt>Username</dt><dd id="profile-username"></dd></div><div><dt>Role</dt><dd id="profile-role"></dd></div><div><dt>Access level</dt><dd>Read-only analytics</dd></div></dl>
+      <div class="profile-grid"><section><div class="table-heading"><h2>Permitted tables</h2><span id="table-total"></span></div><ul id="profile-tables" class="permission-list"></ul></section><section><div class="table-heading"><h2>Countries</h2><span id="country-total"></span></div><div class="table-wrap"><table><thead><tr><th scope="col">Country</th><th scope="col">Code</th><th scope="col">Entity</th></tr></thead><tbody id="profile-countries"></tbody></table></div></section></div>
+    </section><footer><span>Synthetic demonstration data · Simulated risk scores</span><span>Local demonstration</span></footer>
+  </main>
+</body></html>

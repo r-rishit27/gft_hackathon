@@ -3,6 +3,8 @@ import json
 import httpx
 
 from .errors import AnalyticsError
+from .access_intent import ACCESS_MESSAGE, denied_sql_tables
+from .catalog import load_catalog
 
 
 class ModelClient:
@@ -29,6 +31,8 @@ class ModelClient:
             raise AnalyticsError("model_timeout", "The model service timed out; nothing was executed.", 504) from None
         except (httpx.HTTPError, ValueError):
             raise AnalyticsError("model_unavailable", "The model service returned an unusable response.", 502) from None
+        if isinstance(data, dict) and allowed_columns is not None and denied_sql_tables(data.get("sql"), allowed_columns, load_catalog()["tables"]):
+            raise AnalyticsError("resource_denied", ACCESS_MESSAGE, 403)
         if isinstance(data, dict) and data.get("schema_violations") == ["clarification_required"]:
             raise AnalyticsError("clarification_required", "Please clarify the measure, country scope or time period. The model could not safely answer this question from the available schema.", 422)
         if not isinstance(data, dict) or data.get("schema_valid") is not True:
@@ -47,7 +51,8 @@ class ModelClient:
             if not isinstance(data, dict):
                 raise ValueError("Malformed model health response")
             return {"ready": response.status_code == 200 and data.get("ollama_ready") is True,
-                    "model": data.get("model", "unknown"), "backend": data.get("backend", "unknown")}
+                    "model": data.get("model", "unknown"), "backend": data.get("backend", "unknown"),
+                    "schema_backend": data.get("schema_backend", "unknown")}
         except (httpx.HTTPError, ValueError):
             return {"ready": False, "model": "mannix/defog-llama3-sqlcoder-8b", "backend": "ollama"}
 

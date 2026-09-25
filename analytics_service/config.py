@@ -45,8 +45,16 @@ class Scope(StrictModel):
 
 class Identity(StrictModel):
     subject: str = Field(min_length=1, max_length=100)
-    token_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    token_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    username: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_.-]{2,39}$")
+    password_hash: str | None = Field(default=None, pattern=r"^scrypt\$[a-f0-9]{32}\$[a-f0-9]{64}$")
     scope: str
+
+    @model_validator(mode="after")
+    def credentials_present(self):
+        if bool(self.username) != bool(self.password_hash) or not (self.token_sha256 or self.password_hash):
+            raise ValueError("An identity requires a token or a username and password hash")
+        return self
 
 
 class Settings(StrictModel):
@@ -58,6 +66,7 @@ class Settings(StrictModel):
     identities: list[Identity] = Field(min_length=1)
     requests_per_minute: int = Field(default=10, ge=1, le=60)
     max_concurrent_queries: int = Field(default=2, ge=1, le=10)
+    history_path: str = ":memory:"
 
     @model_validator(mode="after")
     def validate_settings(self):
@@ -71,8 +80,12 @@ class Settings(StrictModel):
             raise ValueError("Model URL must use HTTPS or loopback HTTP")
         if any(i.scope not in self.scopes for i in self.identities):
             raise ValueError("Identity references an unknown scope")
-        if len({i.token_sha256 for i in self.identities}) != len(self.identities):
+        tokens = [i.token_sha256 for i in self.identities if i.token_sha256]
+        if len(set(tokens)) != len(tokens):
             raise ValueError("Each identity must have a distinct token")
+        usernames = [i.username for i in self.identities if i.username]
+        if len(set(usernames)) != len(usernames):
+            raise ValueError("Each username must be unique")
         if len({i.subject for i in self.identities}) != len(self.identities):
             raise ValueError("Each subject must be unique")
         principals = [s.service_account for s in self.scopes.values()]

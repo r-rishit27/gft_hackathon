@@ -1,5 +1,48 @@
 # Analytics Verification
 
+## Admin, Login and Access Messages - 2026-09-25
+
+This checkpoint supersedes the two-profile login flow below. Changes remain local on `codex/ollama-bigquery-live`; nothing was pushed to `main`.
+
+- After explicit approval, created `aml-admin-poc` with project BigQuery Job User, table-level read-only access to the exact 10-view union of Monitoring and Investigation, and signed-in-user impersonation on that new account only. Source data, billing and public deployment were unchanged.
+- Verified Admin using actual impersonated BigQuery credentials: all 10 permitted views readable; RegisteredPartiesExport and ExportedMetadata denied; direct source Party denied; every allowed view exposes getData but not updateData, update or delete. Initial token-grant propagation delay resolved before restarting the app. Report: ignored `admin-access-verification.local.json`.
+- Existing Monitoring/Investigation login records compare exactly with the private pre-Admin backup. Admin username is `admin`; the generated password is in the ignored `profile-logins.local.json`. Runtime config, login file and report are mode 0600. Active runtime has three password identities; Admin is a read-only analytics role, not a Google Cloud administrator.
+- `/login` is now a separate page. Signed-out visits to `/ui/` or `/profile` redirect there. Authenticated `/login` visits redirect to analysis. No sign-in form remains on the query page. `/profile` displays server-derived tables, all seven authorized countries and entity codes; sign-out revokes the session.
+- HTTP 403 access denials show "You do not have the required access to answer this question." Clear forbidden-topic requests fail before inference; physical forbidden table references in rejected model output also receive that message. Unrelated model failures retain their original error category. Negated or ambiguous mentions remain subject to SQL validation; the intent check never grants access.
+- Regression suite: **140 passed, 6 opt-in live tests skipped**, one existing FastAPI/Starlette dependency deprecation warning. Tests cover page routing, country/table metadata, Admin union, early denial, CTE-shadowing/string-literal false positives, unrelated model errors and malicious generated SQL with no executor call.
+- Actual Chrome role journeys passed for all three accounts: separate login, correct table counts (7/4/10), seven country rows, explicit forbidden-query messages, private FAQ/history, reuse, role-spoof rejection and logout. Profile and analysis pages checked at desktop 1440x1000 and mobile 390x844 with no horizontal overflow or JavaScript errors. Screenshots are under `/private/tmp/aml-profile-<role>-<viewport>.png` and `/private/tmp/aml-<role>-<viewport>.png`.
+- Live graph/Ollama/BigQuery jobs: Monitoring transaction directions `aml_3761b53bc9d94d939b26423994d023d8` (2 rows); Investigation case event types `aml_36d6b758a60a4604a5880971ed7b14b3` (11 rows); Admin transaction directions `aml_c008f6c997a342f281765201eb92fe5a` (2 rows) and case event types `aml_9d6d2b893ae9462696ff2777e0c89131` (11 rows). No runtime fixture fallback used.
+- Final dashboard browser regression passed: live job `aml_21b9703e4cce49c9893bf2e0dd92f521` returned CREDIT 13,035 and DEBIT 36,965. Verified chart pixels, exact table values, desktop/mobile overflow, collapsed technical details and sign-out. Isolated browser-rendering cases additionally tested empty/partial results, pagination and decimal precision; these are test-only inputs, never runtime results.
+
+## Password Profiles and Private Questions - 2026-09-25
+
+- Created approved `aml-monitoring-poc` and `aml-investigation-poc` service accounts with project Job User, table-level Data Viewer only on their respective existing authorized views, and signed-in-user Token Creator on those accounts. No source data, source schemas, billing or public deployment changed. Initial propagation delays were resolved before activating the profile configuration.
+- Monitoring allowed: Party, AccountPartyLink, Transaction, InteractionEvent, PartySupplementaryData, RetailPartiesRegistration, CommercialPartiesRegistration. RiskCaseEvent, RiskScores, Explainability and both export/metadata views denied.
+- Investigation allowed: Party, RiskCaseEvent, RiskScores, Explainability. Transaction, AccountPartyLink, InteractionEvent, supplementary/registration tables and both export/metadata views denied.
+- Read-only BigQuery dry runs checked all 12 views under each actual role principal. Both principals were denied direct source Party access. `testIamPermissions` on every permitted view returned getData but no updateData, update or delete permissions. This verifies real IAM boundaries in addition to application validation.
+- Active service uses `config.roles.local.json`, with only two password identities; the old broad demo bearer token is not present. Passwords generated locally, stored in owner-only ignored profile login file, salted scrypt hashes in runtime configuration. No passwords or session tokens printed in logs or committed.
+- Live browser journeys: Monitoring returned two direction rows, job `aml_24cbe6252fe4480d95e3d9e14c84f758`; Investigation returned eleven event-type rows, job `aml_5a3fa12b198a496485fcd41a5a1c19ba`. Both used the real graph/model/BigQuery path, not fixtures. Saved FAQ, private history, question reuse, rejected request-supplied scopes and logout checked. Desktop/mobile screenshots inspected; no page overflow or JavaScript errors. Long event labels now wrap inside charts.
+- Combined Python suite: 119 passed, 6 opt-in live tests skipped. New tests cover password login errors, HttpOnly/SameSite cookies, CSRF protection, forged roles, old-token rejection, forced forbidden model SQL with no executor call, separate principals, private history/FAQ, frequency counts, history clearing, session rotation/expiry and sign-in throttling.
+- Local PoC only: one-hour in-memory sessions reset at restart, global sign-in throttling, loopback HTTP and a local private SQLite question store. These are not a production banking identity, perimeter or retention certification.
+
+## Stakeholder UI - 2026-09-25
+
+- Redesigned the existing UI without changing authentication, model retrieval, SQL validation or BigQuery access. Hidden routine infrastructure details and retained them in expandable Analysis details; critical warnings and synthetic-data disclosures remain visible.
+- Combined Python regression suite: 116 passed, 6 opt-in live tests skipped. Added presentation tests for numeric identifiers, unrepresented dimensions, time/category charts, scalar zero and partial results.
+- Separate real Playwright flow authenticated with the local access file, submitted the direction-count question and verified CREDIT 13,035 / DEBIT 36,965 from BigQuery job `aml_534a81cd337b4717aabea297eee2c5f7`. Desktop 1440px and mobile 390px screenshots inspected; chart-colored pixel checks and page overflow assertions passed after synchronizing responsive chart resizing.
+- Browser checks also covered tab switching, hidden technical details, exact decimal formatting, 25-row pagination, empty results, partial warnings and sign-out. Edge-case inputs were isolated browser tests, never runtime fixture data. No browser JavaScript errors were recorded.
+
+## FalkorDB Integration - 2026-09-25
+
+- Fetched and reviewed `origin/main` at `0878868`; reused its hybrid lexical/semantic table retrieval and one-hop REFERENCES/LINKS_TO expansion on `codex/ollama-bigquery-live`. No main-branch or hosted-graph changes.
+- Read the existing `aml_data_model` graph: 12 tables and 9 outgoing REFERENCES relationships. Retrieval uses graph descriptions and relationships with deployed BigQuery types/enums and approved-column restrictions. Unknown graph fields cannot expand the SQL authorization boundary. Graph failure stops generation; no silent catalog fallback.
+- Stored supplied credentials only in ignored owner-only `.env`. Restarted the local launcher from persistent `.venv`. The old temporary environment lacked `pyvenv.cfg`, so an initial dependency install inadvertently updated system Python packages; the app now uses the isolated project environment.
+- Model health reports `schema_backend=falkordb`, `backend=ollama`, and `ollama_ready=true`. Authenticated analytics status reports BigQuery ready with 12 authorized views. Health's schema backend is configuration metadata, not a continuous graph connectivity probe; the live retrieval/query below verifies connectivity for this run.
+- Live authenticated question: "Show transaction count grouped by direction, with one row per direction." HTTP 200; CREDIT 13,035 and DEBIT 36,965, agreeing with the previous reviewed totals. BigQuery job `aml_a7cc9d6716e04e6ca730357572e481b7`, 1,213,035 processed bytes, no truncation. Response contained a deterministic bar-chart specification and synthetic-data warnings. No fixture rows or exemplar SQL were used.
+- Combined analytics and dataset regression suite: 112 passed, 6 opt-in live tests skipped (analytics alone: 98 passed). Includes graph selection, field restrictions, STRUCT preservation, empty-graph failure, graph-outage failure and unauthorized-neighbor exclusion. One dependency deprecation warning remains. This single live smoke test does not replace the still-incomplete six-KPI accuracy evaluation below.
+
+## Previous Checkpoint
+
 **Current status, 2026-09-22:** explicit GCP approval received and applied. The real local application runs at `http://127.0.0.1:8012/ui/`; it is connected to BigQuery through authorized views and the requested local Ollama model. No public deployment or billing activation was performed.
 
 ## Connected Verification

@@ -107,6 +107,8 @@ def connect_graph():
         port=FALKORDB_PORT,
         username=FALKORDB_USERNAME,
         password=FALKORDB_PASSWORD,
+        socket_connect_timeout=10,
+        socket_timeout=20,
     )
     return db.select_graph(FALKORDB_GRAPH)
 
@@ -310,7 +312,7 @@ def _table_gist(name, t):
     return f"{name}: {desc}. Fields: {' '.join(field_parts)}"
 
 
-def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
+def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True, tables=None):
     """Hybrid retrieval: scores tables by a blend of (a) lexical overlap
     between question tokens and table/field names + enum values (weighted
     higher) + descriptions (cleaned of classification prefixes, first
@@ -319,7 +321,9 @@ def retrieve_relevant_tables(graph, question, top_k=6, expand_hops=True):
     semantic_search.py for why lexical alone isn't sufficient. Then expands
     one hop across REFERENCES/LINKS_TO edges so joinable tables aren't
     dropped. Falls back to the full schema if nothing scores above zero."""
-    tables = fetch_all_tables(graph)
+    tables = fetch_all_tables(graph) if tables is None else tables
+    if not tables:
+        raise RuntimeError("No authorized deployed tables overlap the knowledge graph")
     if graph is None:
         # Twelve small schema tables fit in the local model context. Preserve all
         # join paths and nested types when the optional graph is not configured.
@@ -827,19 +831,45 @@ def _attempt_generation(question, tables, with_system_prompt, ground_tables, fee
     return validated_sql, corrections, violations, model_input
 
 
+def retrieve_execution_tables(question, top_k, allowed_columns):
+    """Use graph retrieval with deployed types and server-approved columns."""
+    physical = fetch_catalog_tables()
+    names = set(allowed_columns) if allowed_columns is not None else set(physical)
+    tables = {name: physical[name] for name in physical if name in names}
+    for name, table in tables.items():
+        if allowed_columns is not None:
+            table["fields"] = [f for f in table["fields"] if f["name"] in allowed_columns[name]]
+        fields = {f["name"] for f in table["fields"]}
+        table["primary_key"] = [key for key in table["primary_key"] if key in fields]
+    graph = connect_graph()
+    if graph is None:
+        return retrieve_catalog_tables(question, tables)
+    knowledge = fetch_all_tables(graph)
+    tables = {name: table for name, table in tables.items() if name in knowledge}
+    for name, table in tables.items():
+        fields = {f["name"] for f in table["fields"]}
+        table["description"] = knowledge[name].get("description") or table["description"]
+        graph_fields = {f["name"]: f for f in knowledge[name]["fields"]}
+        for field in table["fields"]:
+            description = graph_fields.get(field["name"], {}).get("description")
+            if description:
+                field["description"] = description
+        table["foreign_keys"] = [fk for fk in knowledge[name]["foreign_keys"]
+                                 if fk["column"] in fields and fk["ref_table"] in tables]
+    # Retrieval prunes a copy; retain complete authorized STRUCT definitions in DDL.
+    import copy
+    selected = retrieve_relevant_tables(graph, question, top_k=top_k,
+                                       tables=copy.deepcopy(tables))
+    return {name: tables[name] for name in selected}
+
+
 def generate_sql_kag(question, top_k=6, with_system_prompt=False, use_exemplars=True,
                       ground_tables=False, retry_on_invalid=False, execution_mode=False,
                       allowed_columns=None):
     if execution_mode:
         # Keep main's Ollama prompt/inference path, but avoid fuzzy repairs or
         # exemplar shortcuts when SQL will be executed against real BigQuery.
-        physical = fetch_catalog_tables()
-        names = set(allowed_columns) if allowed_columns is not None else set(physical)
-        tables = {name: physical[name] for name in physical if name in names}
-        for name, table in tables.items():
-            if allowed_columns is not None:
-                table["fields"] = [f for f in table["fields"] if f["name"] in allowed_columns[name]]
-        tables = retrieve_catalog_tables(question, tables)
+        tables = retrieve_execution_tables(question, top_k, allowed_columns)
         model_input = build_sqlcoder_input(question, tables, ground_tables=list(tables))
         sql = generate_sql_ollama(model_input, system=SYSTEM_PROMPT)
         from pipeline.bigquery_schema import normalize_date_trunc, validate_candidate

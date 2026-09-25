@@ -1,6 +1,7 @@
 # secrets
 .env
 analytics_service/*.local.json
+analytics_service/*.local.sqlite*
 .venv/
 
 # python

@@ -1,36 +1,29 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>AML Analytics</title>
-  <link rel="stylesheet" href="styles.css">
-  <script defer src="vendor/chart.umd.js"></script>
-  <script defer src="app.js"></script>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AML Analytics</title><link rel="stylesheet" href="styles.css">
+  <script defer src="vendor/chart.umd.js"></script><script defer src="app.js"></script>
 </head>
 <body>
-  <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">A</span> AML Analytics</div><span class="badge">SYNTHETIC DATA</span></header>
+  <header class="topbar"><div class="brand"><span class="brand-mark" aria-hidden="true">A</span> AML Analytics</div><nav class="main-nav" aria-label="Main navigation"><a href="/ui/" aria-current="page">Analysis</a><a href="/profile">Profile</a></nav><span class="badge">SYNTHETIC DATA</span></header>
   <main>
-    <section class="heading"><div><p class="eyebrow">INVESTIGATION INTELLIGENCE</p><h1>AML Analytics</h1></div><div class="connection"><span id="status">Not connected</span><span id="scope"></span></div></section>
-    <form id="access-form" class="access"><label for="token">Access token</label><input id="token" type="password" autocomplete="off" required maxlength="512"><button type="submit">Connect</button><button id="open-access" type="button">Open access file</button><input id="access-file" type="file" accept="application/json,.json" hidden><button id="disconnect" type="button" hidden>Disconnect</button></form>
-    <form id="query-form" class="query-form">
-      <div class="question"><label for="question">Ask your dataset</label><textarea id="question" rows="3" autocomplete="off" maxlength="2000" placeholder="How did monthly transaction amounts change by direction during 2026?" required disabled></textarea></div>
-      <button id="run" type="submit" disabled>Run query</button>
-    </form>
-    <div class="connection"><span id="model-status">Ollama: not checked</span><span id="bq-status">BigQuery: not checked</span></div>
+    <section class="heading"><div><p class="eyebrow">FINANCIAL CRIME INTELLIGENCE</p><h1>Management overview</h1></div><div class="connection"><span id="status">Connecting</span><a id="profile-link" href="/profile">Your profile</a></div></section>
+    <div class="scope-line"><span>Markets</span><span id="scope">Not signed in</span></div>
+    <form id="query-form" class="query-form"><div class="question"><label for="question">What would you like to understand?</label><textarea id="question" rows="2" autocomplete="off" maxlength="2000" placeholder="What would you like to know about your permitted data?" required disabled></textarea></div><div class="query-actions"><button id="save-question" type="button" title="Save question to FAQ" aria-label="Save question to FAQ" disabled>+</button><button id="run" type="submit" disabled>Analyze</button></div></form>
+    <details id="question-library" hidden><summary>FAQ &amp; query history</summary><div class="library-toolbar"><div class="view-tabs" role="tablist" aria-label="Question library"><button id="faq-tab" type="button" role="tab" aria-controls="faq-panel" aria-selected="true">FAQ</button><button id="history-tab" type="button" role="tab" aria-controls="history-panel" aria-selected="false" tabindex="-1">History</button></div><button id="clear-history" type="button" hidden>Clear history</button></div><div id="faq-panel" role="tabpanel" aria-labelledby="faq-tab"><div class="faq-grid"><section><h3>Saved questions</h3><div id="saved-questions"></div></section><section><h3>Frequently asked</h3><div id="frequent-questions"></div></section></div></div><div id="history-panel" role="tabpanel" aria-labelledby="history-tab" hidden><div id="history-questions"></div></div></details>
     <div id="message" role="status" aria-live="polite"></div>
     <section id="results" hidden>
       <div class="result-heading"><h2 id="metric-title">Results</h2><span id="freshness"></span></div>
-      <div id="warnings" class="warnings"></div>
-      <ul id="insights" class="insights"></ul>
-      <div id="kpis" class="kpis"></div>
-      <div id="charts" class="charts"></div>
-      <div class="table-heading"><h2>Query results</h2><span id="row-count"></span></div>
-      <div class="table-wrap" tabindex="0"><table><thead id="columns"></thead><tbody id="rows"></tbody></table></div>
-      <details class="provenance"><summary>SQL and provenance</summary><dl id="provenance"></dl><pre id="sql"></pre></details>
+      <div id="warnings" class="warnings"></div><p id="result-context" class="result-context"></p><ul id="insights" class="insights"></ul>
+      <div class="result-toolbar"><div class="view-tabs" role="tablist" aria-label="Result view"><button id="overview-tab" type="button" role="tab" aria-controls="overview-panel" aria-selected="true">Overview</button><button id="table-tab" type="button" role="tab" aria-controls="table-panel" aria-selected="false">Data table</button></div><span id="row-count"></span></div>
+      <div id="overview-panel" role="tabpanel" aria-labelledby="overview-tab"><div id="kpis" class="kpis"></div><div id="charts" class="charts"></div></div>
+      <div id="table-panel" role="tabpanel" aria-labelledby="table-tab" hidden><div class="table-wrap" tabindex="0" aria-label="Result data"><table><thead id="columns"></thead><tbody id="rows"></tbody></table></div><div id="pagination"><button id="previous-page" type="button" aria-label="Previous page" title="Previous page">&#8592;</button><span id="page-label" aria-live="polite"></span><button id="next-page" type="button" aria-label="Next page" title="Next page">&#8594;</button></div></div>
+      <p class="review-note">AI-assisted analysis. Confirm business meaning before making decisions.</p>
+      <details class="provenance"><summary>Analysis details</summary><div id="detailed-warnings"></div><dl id="provenance"></dl><pre id="sql"></pre></details>
     </section>
-    <section id="empty" class="empty"><div class="empty-symbol" aria-hidden="true">[ ]</div><h2>No query results</h2><p id="empty-status">Authentication required</p></section>
-    <footer><span>gen-lang-client-0810987953 / aml_demo</span><span>UTC reporting · Read-only</span></footer>
+    <section id="empty" class="empty"><span id="loading-indicator" hidden aria-hidden="true"></span><h2 id="empty-title">Your next insight starts here</h2><p id="empty-status">Sign in to begin your analysis</p></section>
+    <footer><span>Synthetic demonstration data · Simulated risk scores</span><span>Confidential workspace · UTC reporting</span></footer>
   </main>
 </body>
 </html>

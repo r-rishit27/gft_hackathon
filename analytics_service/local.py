@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 import requests
+from dotenv import load_dotenv
 
 from .catalog import ROOT
 from .config import Settings
@@ -15,9 +16,11 @@ from .config import Settings
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "analytics_service/config.local.json")
+    role_config = ROOT / "analytics_service/config.roles.local.json"
+    parser.add_argument("--config", type=Path, default=role_config if role_config.exists() else ROOT / "analytics_service/config.local.json")
     parser.add_argument("--port", type=int, default=8011)
     args = parser.parse_args()
+    load_dotenv(ROOT / ".env")
     settings = Settings.from_file(str(args.config))
     if settings.query_mode != "freeform":
         raise SystemExit("Local integration requires freeform mode")
@@ -30,7 +33,8 @@ def main():
             except OSError:
                 raise SystemExit(f"Port {port} is already occupied. Stop that service or choose another UI port.")
     env = {**os.environ, "MODEL_BACKEND": "ollama", "OLLAMA_HOST": "http://127.0.0.1:11434",
-           "OLLAMA_MODEL": "mannix/defog-llama3-sqlcoder-8b", "SCHEMA_BACKEND": "catalog",
+           "OLLAMA_MODEL": "mannix/defog-llama3-sqlcoder-8b",
+           "SCHEMA_BACKEND": os.environ.get("SCHEMA_BACKEND", "falkordb"),
            "OLLAMA_NUM_CTX": "8192", "OLLAMA_TIMEOUT_SECONDS": "240",
            "AML_ANALYTICS_CONFIG": str(args.config.resolve())}
     children = []

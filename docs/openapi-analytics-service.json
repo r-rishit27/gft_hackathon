@@ -1,0 +1,351 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AML Analytics",
+    "version": "0.1.0",
+    "description": "The deployed product: role-based login, a BigQuery-backed natural-language query dashboard, and per-user query history/saved questions. Every /query call generates SQL via the model service, validates it against schema/resource/function rules, rewrites table references to the caller's authorized views, and executes it against BigQuery under a scan budget."
+  },
+  "servers": [
+    { "url": "https://aml-analytics-service.onrender.com", "description": "Production" },
+    { "url": "http://127.0.0.1:8012", "description": "Local" }
+  ],
+  "tags": [
+    { "name": "UI", "description": "Server-rendered HTML pages for the dashboard." },
+    { "name": "Auth", "description": "Session/login endpoints." },
+    { "name": "Query", "description": "The core question-answering endpoint." },
+    { "name": "Workspace", "description": "Per-user saved questions and query history." },
+    { "name": "Meta", "description": "Health, status and catalog metadata." }
+  ],
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "aml_session",
+        "description": "HttpOnly, SameSite=Strict session cookie set by POST /auth/login, valid 1 hour. Used by the browser dashboard."
+      },
+      "BearerToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Static per-identity bearer token, for non-browser/API callers."
+      }
+    },
+    "schemas": {
+      "Login": {
+        "type": "object",
+        "required": ["username", "password"],
+        "properties": {
+          "username": { "type": "string", "minLength": 1, "maxLength": 40 },
+          "password": { "type": "string", "minLength": 1, "maxLength": 128 }
+        }
+      },
+      "Country": {
+        "type": "object",
+        "properties": {
+          "code": { "type": "string", "example": "GB" },
+          "name": { "type": "string", "example": "United Kingdom" },
+          "entity": { "type": "string", "example": "HSBC" }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "role": { "type": "string", "enum": ["monitoring", "investigation", "admin"] },
+          "tables": { "type": "array", "items": { "type": "string" } },
+          "countries": { "type": "array", "items": { "$ref": "#/components/schemas/Country" } },
+          "read_only": { "type": "boolean", "example": true }
+        }
+      },
+      "Question": {
+        "type": "object",
+        "required": ["question"],
+        "properties": {
+          "question": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      },
+      "SavedQuestion": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Question" },
+          { "type": "object", "properties": { "saved": { "type": "boolean", "default": true } } }
+        ]
+      },
+      "WorkspaceHistoryEntry": {
+        "type": "object",
+        "properties": {
+          "question": { "type": "string" },
+          "outcome": { "type": "string", "enum": ["completed", "not_completed"] },
+          "created": { "type": "string", "format": "date-time" }
+        }
+      },
+      "WorkspaceFrequentEntry": {
+        "type": "object",
+        "properties": {
+          "question": { "type": "string" },
+          "count": { "type": "integer" }
+        }
+      },
+      "Workspace": {
+        "type": "object",
+        "properties": {
+          "history": { "type": "array", "items": { "$ref": "#/components/schemas/WorkspaceHistoryEntry" }, "description": "Last 100 queries for this identity: question, completion status, timestamp -- never SQL or result rows." },
+          "frequent": { "type": "array", "items": { "$ref": "#/components/schemas/WorkspaceFrequentEntry" } },
+          "saved": { "type": "array", "items": { "type": "string" }, "description": "Up to 50 saved FAQ questions." }
+        }
+      },
+      "Column": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "mode": { "type": "string", "default": "NULLABLE" }
+        }
+      },
+      "Dashboard": {
+        "type": "object",
+        "properties": {
+          "state": { "type": "string", "enum": ["empty", "partial", "complete"] },
+          "charts": { "type": "array", "items": { "type": "object" } },
+          "insights": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "QueryResponse": {
+        "type": "object",
+        "properties": {
+          "request_id": { "type": "string", "format": "uuid" },
+          "job_id": { "type": "string" },
+          "metric": { "type": "string", "description": "A known KPI id, or \"exploration\" for a freeform question." },
+          "question": { "type": "string" },
+          "semantic_validation": { "type": "string", "enum": ["reviewed_template", "schema_and_policy_only"] },
+          "columns": { "type": "array", "items": { "$ref": "#/components/schemas/Column" } },
+          "rows": { "type": "array", "items": { "type": "object" } },
+          "sql": { "type": "string" },
+          "schema_version": { "type": "string" },
+          "scope": { "type": "array", "items": { "type": "string" } },
+          "units": { "type": "object", "additionalProperties": { "type": "string" } },
+          "data_as_of": { "type": "string", "format": "date-time" },
+          "timezone": { "type": "string", "example": "UTC" },
+          "synthetic": { "type": "boolean", "enum": [true] },
+          "mode": { "type": "string", "enum": ["bigquery", "offline_fixture"] },
+          "bytes_processed": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "warnings": { "type": "array", "items": { "type": "string" } },
+          "dashboard": { "$ref": "#/components/schemas/Dashboard" }
+        }
+      },
+      "ModelStatus": {
+        "type": "object",
+        "properties": {
+          "ready": { "type": "boolean" },
+          "model": { "type": "string" },
+          "backend": { "type": "string" },
+          "schema_backend": { "type": "string" }
+        }
+      },
+      "BigQueryStatus": {
+        "type": "object",
+        "properties": {
+          "ready": { "type": "boolean" },
+          "approved_views": { "type": "integer" },
+          "message": { "type": "string" }
+        }
+      },
+      "StatusResponse": {
+        "type": "object",
+        "properties": {
+          "mode": { "type": "string", "example": "bigquery" },
+          "query_mode": { "type": "string", "enum": ["freeform", "reviewed"] },
+          "project": { "type": "string" },
+          "dataset": { "type": "string" },
+          "location": { "type": "string" },
+          "scope": { "type": "array", "items": { "type": "string" } },
+          "profile": { "$ref": "#/components/schemas/Profile" },
+          "schema_version": { "type": "string" },
+          "model": { "$ref": "#/components/schemas/ModelStatus" },
+          "bigquery": { "$ref": "#/components/schemas/BigQueryStatus" }
+        }
+      },
+      "MetricSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "question": { "type": "string" },
+          "units": { "type": "string" }
+        }
+      },
+      "MetricsResponse": {
+        "type": "object",
+        "properties": {
+          "scope": { "type": "array", "items": { "type": "string" } },
+          "schema_version": { "type": "string" },
+          "mode": { "type": "string" },
+          "questions": { "type": "array", "items": { "$ref": "#/components/schemas/MetricSummary" } }
+        }
+      },
+      "AnalyticsHealth": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "checks": { "type": "string", "example": "process only; not model or BigQuery readiness" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "request_id": { "type": "string", "format": "uuid" },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": ["unauthorized", "csrf", "request_too_large", "rate_limit", "busy", "invalid_request",
+                  "resource_denied", "clarification_required", "model_rejected", "model_timeout",
+                  "model_unavailable", "model_response", "internal_error"]
+              },
+              "message": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/login": {
+      "get": {
+        "tags": ["UI"],
+        "summary": "Login page",
+        "description": "Serves the sign-in HTML page, or redirects to /ui/ if already signed in.",
+        "responses": { "200": { "description": "Login page (HTML)" }, "307": { "description": "Already signed in; redirected to /ui/" } }
+      }
+    },
+    "/profile": {
+      "get": {
+        "tags": ["UI"],
+        "summary": "Profile page",
+        "responses": { "200": { "description": "Profile page (HTML)" }, "307": { "description": "Not signed in; redirected to /login" } }
+      }
+    },
+    "/ui/": {
+      "get": {
+        "tags": ["UI"],
+        "summary": "Analysis dashboard page",
+        "responses": { "200": { "description": "Dashboard page (HTML)" }, "307": { "description": "Not signed in; redirected to /login" } }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Sign in with username/password",
+        "description": "On success, sets an HttpOnly, SameSite=Strict session cookie (1 hour) and returns the caller's profile.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Login" } } } },
+        "responses": {
+          "200": { "description": "Signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } },
+          "401": { "description": "Invalid credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Sign out",
+        "description": "Revokes the current session and clears the cookie.",
+        "responses": { "200": { "description": "Signed out" } }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Current identity",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Profile" } } } },
+          "401": { "description": "Not signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/workspace": {
+      "get": {
+        "tags": ["Workspace"],
+        "summary": "Get saved questions and query history",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Workspace" } } } },
+          "401": { "description": "Not signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/workspace/saved": {
+      "post": {
+        "tags": ["Workspace"],
+        "summary": "Save or unsave a FAQ question",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SavedQuestion" } } } },
+        "responses": {
+          "200": { "description": "Updated workspace", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Workspace" } } } },
+          "401": { "description": "Not signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "422": { "description": "Empty question", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/workspace/history": {
+      "delete": {
+        "tags": ["Workspace"],
+        "summary": "Clear query history",
+        "description": "Clears history only; saved FAQ questions are untouched.",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "responses": {
+          "200": { "description": "Updated workspace", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Workspace" } } } },
+          "401": { "description": "Not signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/query": {
+      "post": {
+        "tags": ["Query"],
+        "summary": "Ask a question about the permitted AML data",
+        "description": "The core endpoint. Generates SQL for the question, validates it against schema/resource/function rules, rewrites table references to the caller's authorized views, dry-runs and then executes it against BigQuery under a scan budget, and returns a dashboard-ready result. Gated by a per-identity rate limit (requests_per_minute) and a global in-flight concurrency cap (max_concurrent_queries).",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Question" } } } },
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QueryResponse" } } } },
+          "401": { "description": "Not signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "403": { "description": "The question touches a resource outside the caller's scope", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "422": { "description": "Invalid question, model-rejected candidate, or clarification required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "429": { "description": "Per-identity rate limit reached, or the service is at its concurrent-query cap", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "502": { "description": "The model service returned an unusable response", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+          "504": { "description": "The model service timed out", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Process liveness only",
+        "description": "Does not reflect model or BigQuery readiness -- see /status for that.",
+        "responses": { "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AnalyticsHealth" } } } } }
+      }
+    },
+    "/status": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Authenticated model and data readiness",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/StatusResponse" } } } },
+          "401": { "description": "Not signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Reviewed KPI catalog available to the caller's scope",
+        "security": [{ "SessionCookie": [] }, { "BearerToken": [] }],
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MetricsResponse" } } } },
+          "401": { "description": "Not signed in", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+        }
+      }
+    }
+  }
+}

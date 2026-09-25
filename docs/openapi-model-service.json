@@ -1,0 +1,105 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "AML Text-to-SQL Model Service",
+    "version": "1.0.0",
+    "description": "Internal-only API that turns a natural-language question into SQL: retrieves relevant tables from the knowledge graph, serializes them as DDL, prompts the model, and schema-validates the result. Not intended to be called directly by end users -- aml-analytics-service is the public product surface that calls this."
+  },
+  "servers": [
+    { "url": "https://aml-model-backend.onrender.com", "description": "Production" },
+    { "url": "http://127.0.0.1:8000", "description": "Local" }
+  ],
+  "tags": [
+    { "name": "Generation", "description": "SQL generation from a natural-language question." },
+    { "name": "Meta", "description": "Health and readiness." }
+  ],
+  "components": {
+    "schemas": {
+      "Correction": {
+        "type": "object",
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "kind": { "type": "string", "nullable": true, "description": "\"table\" or \"column\"" },
+          "stage": { "type": "string", "nullable": true, "description": "\"kg_repair\" (retrieval-scoped) or omitted for the canonical schema validator" }
+        },
+        "required": ["from", "to"]
+      },
+      "QuestionRequest": {
+        "type": "object",
+        "required": ["question"],
+        "properties": {
+          "question": { "type": "string", "minLength": 1, "maxLength": 2000, "description": "Natural-language question about the AML dataset." },
+          "with_system_prompt": { "type": "boolean", "default": false, "description": "Prepend the business-analyst/read-only-SQL system prompt to the model input." },
+          "top_k": { "type": "integer", "default": 6, "minimum": 1, "maximum": 20, "description": "Number of tables the retrieval engine selects before hop expansion." },
+          "use_exemplars": { "type": "boolean", "default": true, "description": "Reuse a verified answer for (near-)duplicate known KPI questions instead of regenerating." },
+          "ground_tables": { "type": "boolean", "default": false, "description": "Prepend a dynamic 'use only these exact table names' line." },
+          "retry_on_invalid": { "type": "boolean", "default": false, "description": "If the first attempt fails schema validation, widen retrieval and regenerate once with the violations fed back into the prompt." },
+          "execution_mode": { "type": "boolean", "default": false, "description": "Used by aml-analytics-service: emits native BigQuery types/enums directly, skipping exemplar answers and fuzzy repair." },
+          "allowed_columns": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": { "type": "array", "items": { "type": "string" } },
+            "description": "Table -> allowed column names, used with execution_mode to scope generation to the caller's authorized resources."
+          }
+        }
+      },
+      "QuestionResponse": {
+        "type": "object",
+        "properties": {
+          "question": { "type": "string" },
+          "sql": { "type": "string" },
+          "source": { "type": "string", "enum": ["exemplar_retrieval", "model_generation", "ollama_generation"] },
+          "matched_question": { "type": "string", "nullable": true },
+          "similarity": { "type": "number" },
+          "tables_used": { "type": "array", "items": { "type": "string" } },
+          "corrections": { "type": "array", "items": { "$ref": "#/components/schemas/Correction" } },
+          "schema_valid": { "type": "boolean" },
+          "schema_violations": { "type": "array", "items": { "type": "string" } },
+          "retried": { "type": "boolean" },
+          "system_prompt": { "type": "string", "nullable": true },
+          "model_input": { "type": "string", "nullable": true }
+        }
+      },
+      "ModelHealth": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string", "example": "ok" },
+          "ollama_ready": { "type": "boolean", "description": "Whether the primary local model backend is reachable right now." },
+          "generation_ready": { "type": "boolean", "description": "Whether POST /generate-sql can currently service a request at all, across every configured generation path." },
+          "model": { "type": "string" },
+          "backend": { "type": "string" },
+          "schema_backend": { "type": "string", "enum": ["falkordb", "catalog", "auto"] }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/generate-sql": {
+      "post": {
+        "tags": ["Generation"],
+        "summary": "Generate SQL from a natural-language question",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QuestionRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "SQL generated (and schema-validated) successfully.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/QuestionResponse" } } }
+          },
+          "503": { "description": "Generation unavailable; check the model service's own logs." }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["Meta"],
+        "summary": "Liveness and generation readiness",
+        "responses": {
+          "200": { "description": "OK", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelHealth" } } } }
+        }
+      }
+    }
+  }
+}

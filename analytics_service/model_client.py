@@ -50,7 +50,7 @@ class ModelClient:
             data = response.json()
             if not isinstance(data, dict):
                 raise ValueError("Malformed model health response")
-            # generation_ready covers the OpenAI fallback too; fall back to the
+            # generation_ready covers the fallback model too; fall back to the
             # older ollama_ready-only field for a model service that hasn't
             # picked up that response field yet.
             ready_field = data.get("generation_ready", data.get("ollama_ready"))

@@ -96,9 +96,8 @@ validated SQL + violation list, returned to the caller
 
 ```
 .
-├── app.py                    # FastAPI service (entry point) — run with `uvicorn app:app`
-├── frontend/
-│   └── index.html            # Chat UI served at /ui, talks to app.py's API
+├── app.py                    # FastAPI model-service API (entry point) — run with `uvicorn app:app`
+│                              #   internal-only: no bundled frontend; analytics_service is the deployed UI
 ├── pipeline/                 # Core text-to-SQL pipeline (importable package)
 │   ├── text2sql_falkordb.py  #   retrieval + schema serialization + exemplar shortcut + inference
 │   ├── schema_validator.py   #   final validation/repair against the canonical schema file
@@ -147,12 +146,12 @@ validated SQL + violation list, returned to the caller
 
 ## Running
 
-**API + chat UI** (from the project root):
+**Model-service API** (from the project root):
 ```
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
-Then open `http://localhost:8000/ui/` for the chat interface, or `POST /generate-sql` with
-`{"question": "..."}` directly. Interactive API docs at `/docs`.
+`POST /generate-sql` with `{"question": "..."}`. Interactive API docs at `/docs`. This service has no
+frontend of its own — see `analytics_service/` for the deployed UI that calls it.
 
 **CLI** (one-off question, no server):
 ```

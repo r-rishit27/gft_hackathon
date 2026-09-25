@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: aml-kpi-copilot
+    name: aml-model-backend
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt

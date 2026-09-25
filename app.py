@@ -6,6 +6,9 @@ question -> retrieve relevant tables from the FalkorDB knowledge graph ->
 serialize schema as DDL -> mannix/defog-llama3-sqlcoder-8b (via a local
 Ollama server) -> SQL string.
 
+This is an internal model-service API, not a public-facing product -- it has
+no bundled frontend. analytics_service is the deployed UI that calls it.
+
 Run from the project root:
     uvicorn app:app --host 127.0.0.1 --port 8000
 
@@ -17,7 +20,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from pipeline import text2sql_falkordb as pipeline
@@ -42,8 +44,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allow the standalone frontend (opened via file:// or a local static server)
-# to call this API from the browser.
+# Allow cross-origin callers (analytics_service, or any other deployed
+# frontend) to call this API from the browser.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -145,7 +147,3 @@ def health():
     return {"status": "ok", "ollama_ready": ready,
             "model": pipeline.OLLAMA_MODEL, "backend": pipeline.MODEL_BACKEND,
             "schema_backend": pipeline.SCHEMA_BACKEND}
-
-
-# Serve the chat frontend at /ui (mounted last so it doesn't shadow the API routes above).
-app.mount("/ui", StaticFiles(directory="frontend", html=True), name="ui")

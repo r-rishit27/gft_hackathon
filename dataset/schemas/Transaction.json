@@ -1,0 +1,196 @@
+[
+  {
+    "name": "transaction_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Unique ID of this transaction, from the point of view of the specified Account. Note that a transfer is between two accounts, both in the Account table, and should be represented by two transactions with separate transaction IDs, one with direction = DEBIT and one with direction = CREDIT.",
+    "type": "STRING"
+  },
+  {
+    "name": "validity_start_time",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Timestamp when the information of this row was the correct state of the entity.",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "is_entity_deleted",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: If set to TRUE, indicates the Transaction is no longer present in your system of record.",
+    "type": "BOOL"
+  },
+  {
+    "name": "source_system",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality.",
+    "type": "STRING"
+  },
+  {
+    "name": "type",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: High level type of the transaction. Supported values: CARD, transaction involving a credit or debit card (includes GPay); CASH, transaction where cash is paid into or withdrawn from an account; CHECK, transaction where a cheque is used; WIRE, default for other transactions, including transfers between accounts at the same or different banks. One of: [WIRE:CASH:CHECK:CARD:OTHER:CRYPTO].",
+    "type": "STRING"
+  },
+  {
+    "name": "direction",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Direction of the transaction assets flow from the point of view of the specified account ID. Uses common definition of credit/debit in banking. Supported values: DEBIT, represents a transfer of value from this account; CREDIT, represents a transfer of value to this account One of: [DEBIT:CREDIT].",
+    "type": "STRING"
+  },
+  {
+    "name": "account_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Account ID of the Account in the Account Party Link table.",
+    "type": "STRING"
+  },
+  {
+    "name": "counterparty_account",
+    "mode": "NULLABLE",
+    "description": "MANDATORY: Details of counterparty and their account used in this transaction. Relates specifically to WIRE, CASH and CHECK transactions. For CARD transactions, this may represent the merchant or be NULL in case you do not have these details.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "account_id",
+        "mode": "NULLABLE",
+        "description": "MANDATORY: Account ID of a transaction's counterparty, if in the AccountPartyLink table. Can be NULL if the counterparty account is not represented in the Account Party Link table, for example, the customer of another financial institution.",
+        "type": "STRING"
+      },
+      {
+        "name": "counterparty_name",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: Name of the counterparty.",
+        "type": "STRING"
+      },
+      {
+        "name": "addresses",
+        "mode": "REPEATED",
+        "description": "EXPERIMENTAL: Counterparty address, if known.",
+        "type": "RECORD",
+        "fields": [
+          {
+            "name": "address_line",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: First line of address in case not captured by street and building number.",
+            "type": "STRING"
+          },
+          {
+            "name": "street",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Street of the address.",
+            "type": "STRING"
+          },
+          {
+            "name": "building_number",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Building number of the address.",
+            "type": "STRING"
+          },
+          {
+            "name": "post_office_box",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: PO Box identifier in case the address is a PO Box.",
+            "type": "STRING"
+          },
+          {
+            "name": "post_code",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Postcode. Include postcode for each Party where this is known to the bank.",
+            "type": "STRING"
+          },
+          {
+            "name": "town",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Town of the address.",
+            "type": "STRING"
+          },
+          {
+            "name": "subregion",
+            "mode": "NULLABLE",
+            "description": "MANDATORY: Region within the country. For AML do not use NULL for this field.",
+            "type": "STRING"
+          },
+          {
+            "name": "region_code",
+            "mode": "NULLABLE",
+            "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format. Do not use NULL for this field.",
+            "type": "STRING"
+          }
+        ]
+      },
+      {
+        "name": "region_code",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Country or region of the counterparty account in two-letter Unicode CLDR code format. In the case of cash withdrawals or deposits, this should be the country where the cash was withdrawn or deposited.",
+        "type": "STRING"
+      }
+    ]
+  },
+  {
+    "name": "book_time",
+    "mode": "NULLABLE",
+    "description": "MANDATORY: The time when the transaction was posted to the account (recommended). You may use a different time if preferred by your internal processes and controls.",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "normalized_booked_amount",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Non-negative booked amount posted on the party's account, normalized to a standard currency for the whole dataset.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "currency_code",
+        "mode": "REQUIRED",
+        "description": "MANDATORY: The three-letter currency code defined in ISO 4217.",
+        "type": "STRING"
+      },
+      {
+        "name": "units",
+        "mode": "REQUIRED",
+        "description": "MANDATORY: The whole units of the amount. For example, if currency_code is USD, then 1 unit is one US dollar.",
+        "type": "INT64"
+      },
+      {
+        "name": "nanos",
+        "mode": "REQUIRED",
+        "description": "MANDATORY: Number of nano (10^-9) units of the amount. The value must be between 0 and 999,999,999, inclusive. Nanos must be positive or zero.",
+        "type": "INT64"
+      }
+    ]
+  },
+  {
+    "name": "ip_address",
+    "mode": "NULLABLE",
+    "description": "EXPERIMENTAL: Ip address from which the transaction was booked.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "type",
+        "mode": "NULLABLE",
+        "description": "MANDATORY: IP address type. One of: [V4:V6].",
+        "type": "STRING"
+      },
+      {
+        "name": "ip",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: IP address.",
+        "type": "STRING"
+      },
+      {
+        "name": "obfuscated_ip",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: IP address, obfuscated.",
+        "type": "STRING"
+      },
+      {
+        "name": "region_code",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: Region code extracted from the IP address in two-letter Unicode CLDR code format, if known.",
+        "type": "STRING"
+      },
+      {
+        "name": "is_vpn",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: Whether a VPN service was used.",
+        "type": "BOOL"
+      }
+    ]
+  }
+]

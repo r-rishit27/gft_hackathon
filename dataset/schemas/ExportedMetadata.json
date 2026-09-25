@@ -1,0 +1,26 @@
+[
+  {
+    "name": "resource_type",
+    "mode": "REQUIRED",
+    "description": "Type of AML AI resource, such as an engine config or prediction results",
+    "type": "STRING"
+  },
+  {
+    "name": "resource_id",
+    "mode": "REQUIRED",
+    "description": "Name of the resource",
+    "type": "STRING"
+  },
+  {
+    "name": "name",
+    "mode": "REQUIRED",
+    "description": "Name of the metadata entry, such as a metric",
+    "type": "STRING"
+  },
+  {
+    "name": "value",
+    "mode": "REQUIRED",
+    "description": "Value of the metadata entry",
+    "type": "JSON"
+  }
+]

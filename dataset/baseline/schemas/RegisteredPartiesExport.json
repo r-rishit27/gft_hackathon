@@ -1,0 +1,32 @@
+[
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "Unique identifier of the party in the instance's datasets",
+    "type": "STRING"
+  },
+  {
+    "name": "party_size",
+    "mode": "NULLABLE",
+    "description": "Tier designation (NULL for retail; SMALL/LARGE for commercial)",
+    "type": "STRING"
+  },
+  {
+    "name": "earliest_remove_time",
+    "mode": "NULLABLE",
+    "description": "The earliest time at which the party can be removed",
+    "type": "STRING"
+  },
+  {
+    "name": "party_with_prediction_intent",
+    "mode": "NULLABLE",
+    "description": "Indicator of prediction history",
+    "type": "STRING"
+  },
+  {
+    "name": "registration_or_uptier_time",
+    "mode": "NULLABLE",
+    "description": "The time at which the party was registered or uptiered",
+    "type": "STRING"
+  }
+]

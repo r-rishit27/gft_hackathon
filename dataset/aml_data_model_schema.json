@@ -1,0 +1,4756 @@
+{
+  "source": "https://docs.cloud.google.com/financial-services/anti-money-laundering/docs",
+  "pages": {
+    "input_data_model": "https://docs.cloud.google.com/financial-services/anti-money-laundering/docs/reference/schemas/aml-input-data-model",
+    "output_data_model": "https://docs.cloud.google.com/financial-services/anti-money-laundering/docs/reference/schemas/aml-output-data-model",
+    "understand_data_model_requirements": "https://docs.cloud.google.com/financial-services/anti-money-laundering/docs/understand-data-model-requirements",
+    "register_parties": "https://docs.cloud.google.com/financial-services/anti-money-laundering/docs/register-parties",
+    "create_and_manage_prediction_results": "https://docs.cloud.google.com/financial-services/anti-money-laundering/docs/create-and-manage-prediction-results"
+  },
+  "input_data_model": {
+    "description": "Tables that a bank must (or may) provide to AML AI as input for training/prediction.",
+    "tables": [
+      {
+        "name": "Party",
+        "classification": "MANDATORY",
+        "description": "Covers retail or commercial banking customers; enables AML AI to understand details of each party and how they changed over time.",
+        "primary_key": [
+          "party_id",
+          "validity_start_time"
+        ],
+        "fields": [
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Unique ID for your customers. Use a pseudo-ID or an internal customer ID instead of an externally facing customer ID.",
+            "type": "STRING",
+            "example": "HASE_HK_P0001",
+            "column_path": "Party.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_P0001",
+                "HASE_HK_P0008",
+                "HASE_HK_P0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "validity_start_time",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Timestamp of when the information in this row reflected the state of the entity and was known to the bank.",
+            "type": "TIMESTAMP",
+            "example": "2026-01-01T00:00:00Z",
+            "column_path": "Party.validity_start_time",
+            "sql_type": "TIMESTAMP",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 113,
+              "sample_values": [
+                "2026-01-01T00:00:00Z",
+                "2026-01-03T00:00:00Z",
+                "2026-01-04T00:00:00Z"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+              "min": "2026-01-01T00:00:00Z",
+              "max": "2026-08-29T00:00:00Z"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "is_entity_deleted",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: If set to TRUE, indicates the party as deleted from your system of reference.",
+            "type": "BOOL",
+            "example": false,
+            "column_path": "Party.is_entity_deleted",
+            "sql_type": "BOOL",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 1,
+              "unique_values": [
+                false
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": false,
+                  "count": 1140
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              false,
+              true
+            ],
+            "enum_source": "Boolean data type",
+            "value_role": "category"
+          },
+          {
+            "name": "source_system",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality.",
+            "type": "STRING",
+            "example": "HASE_HK_CORE",
+            "column_path": "Party.source_system",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 7,
+              "unique_values": [
+                "HASE_HK_CORE",
+                "HSBC_FR_CORE",
+                "HSBC_GB_CORE",
+                "HSBC_IE_CORE",
+                "HSBC_IN_CORE",
+                "HSBC_PL_CORE",
+                "HSBC_TW_CORE"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "HASE_HK_CORE",
+                  "count": 162
+                },
+                {
+                  "value": "HSBC_FR_CORE",
+                  "count": 166
+                },
+                {
+                  "value": "HSBC_GB_CORE",
+                  "count": 162
+                },
+                {
+                  "value": "HSBC_IE_CORE",
+                  "count": 162
+                },
+                {
+                  "value": "HSBC_IN_CORE",
+                  "count": 164
+                },
+                {
+                  "value": "HSBC_PL_CORE",
+                  "count": 162
+                },
+                {
+                  "value": "HSBC_TW_CORE",
+                  "count": 162
+                }
+              ]
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "type",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Type of this party, to differentiate between a natural person or a legal entity. One of: [COMPANY:CONSUMER].",
+            "type": "STRING",
+            "example": "CONSUMER",
+            "column_path": "Party.type",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 1,
+              "unique_values": [
+                "CONSUMER"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "CONSUMER",
+                  "count": 1140
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "COMPANY",
+              "CONSUMER"
+            ],
+            "enum_source": "Official input schema snapshot: field description",
+            "value_role": "category"
+          },
+          {
+            "name": "name",
+            "mode": "NULLABLE",
+            "description": "EXPERIMENTAL: Name of this party.",
+            "type": "STRING",
+            "example": "HASE_HK_CUSTOMER_0001",
+            "column_path": "Party.name",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_CUSTOMER_0001",
+                "HASE_HK_CUSTOMER_0008",
+                "HASE_HK_CUSTOMER_0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "addresses",
+            "mode": "REPEATED",
+            "description": "EXPERIMENTAL: Addresses of this party, if any.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "address_line",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: First line of address in case not captured by street and building number.",
+                "type": "STRING",
+                "column_path": "Party.addresses.address_line",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 1000,
+                  "sample_values": [
+                    "HASE_HK_ADDRESS_0001",
+                    "HASE_HK_ADDRESS_0008",
+                    "HASE_HK_ADDRESS_0015"
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "street",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Street of the address.",
+                "type": "STRING",
+                "column_path": "Party.addresses.street",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 2,
+                  "unique_values": [
+                    "Demo Street",
+                    "Updated Demo Street"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "Demo Street",
+                      "count": 1038
+                    },
+                    {
+                      "value": "Updated Demo Street",
+                      "count": 102
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "building_number",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Building number of the address.",
+                "type": "STRING",
+                "column_path": "Party.addresses.building_number",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 1000,
+                  "sample_values": [
+                    "1",
+                    "10",
+                    "100"
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "post_office_box",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: PO Box identifier in case the address is a PO Box.",
+                "type": "STRING",
+                "column_path": "Party.addresses.post_office_box",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 1140,
+                  "distinct_count": 0,
+                  "unique_values": [],
+                  "unique_values_complete": true,
+                  "value_counts": []
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "post_code",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Postcode. Include postcode for each Party where this is known to the bank.",
+                "type": "STRING",
+                "column_path": "Party.addresses.post_code",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 1140,
+                  "distinct_count": 0,
+                  "unique_values": [],
+                  "unique_values_complete": true,
+                  "value_counts": []
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "town",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Town of the address.",
+                "type": "STRING",
+                "column_path": "Party.addresses.town",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "Dublin",
+                    "Hong Kong",
+                    "London",
+                    "Mumbai",
+                    "Paris",
+                    "Taipei",
+                    "Warsaw"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "Dublin",
+                      "count": 162
+                    },
+                    {
+                      "value": "Hong Kong",
+                      "count": 162
+                    },
+                    {
+                      "value": "London",
+                      "count": 162
+                    },
+                    {
+                      "value": "Mumbai",
+                      "count": 164
+                    },
+                    {
+                      "value": "Paris",
+                      "count": 166
+                    },
+                    {
+                      "value": "Taipei",
+                      "count": 162
+                    },
+                    {
+                      "value": "Warsaw",
+                      "count": 162
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "subregion",
+                "mode": "NULLABLE",
+                "description": "MANDATORY: Region within the country. For AML do not use NULL for this field.",
+                "type": "STRING",
+                "column_path": "Party.addresses.subregion",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "England",
+                    "Hong Kong",
+                    "Ile-de-France",
+                    "Leinster",
+                    "Maharashtra",
+                    "Mazowieckie",
+                    "Taipei"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "England",
+                      "count": 162
+                    },
+                    {
+                      "value": "Hong Kong",
+                      "count": 162
+                    },
+                    {
+                      "value": "Ile-de-France",
+                      "count": 166
+                    },
+                    {
+                      "value": "Leinster",
+                      "count": 162
+                    },
+                    {
+                      "value": "Maharashtra",
+                      "count": 164
+                    },
+                    {
+                      "value": "Mazowieckie",
+                      "count": 162
+                    },
+                    {
+                      "value": "Taipei",
+                      "count": 162
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "region_code",
+                "mode": "NULLABLE",
+                "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format. Do not use NULL for this field.",
+                "type": "STRING",
+                "column_path": "Party.addresses.region_code",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "FR",
+                    "GB",
+                    "HK",
+                    "IE",
+                    "IN",
+                    "PL",
+                    "TW"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "FR",
+                      "count": 166
+                    },
+                    {
+                      "value": "GB",
+                      "count": 162
+                    },
+                    {
+                      "value": "HK",
+                      "count": 162
+                    },
+                    {
+                      "value": "IE",
+                      "count": 162
+                    },
+                    {
+                      "value": "IN",
+                      "count": 164
+                    },
+                    {
+                      "value": "PL",
+                      "count": 162
+                    },
+                    {
+                      "value": "TW",
+                      "count": 162
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              }
+            ],
+            "example": [
+              {
+                "address_line": "HASE_HK_ADDRESS_0001",
+                "street": "Demo Street",
+                "building_number": "1",
+                "town": "Hong Kong",
+                "subregion": "Hong Kong",
+                "region_code": "HK"
+              }
+            ],
+            "column_path": "Party.addresses",
+            "sql_type": "ARRAY<STRUCT<address_line STRING, street STRING, building_number STRING, post_office_box STRING, post_code STRING, town STRING, subregion STRING, region_code STRING>>",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "empty_array_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          },
+          {
+            "name": "birth_date",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Date of birth for the Party for natural persons, for example, where Party.type = CONSUMER. Where Party.type = COMPANY, use NULL. Typically also used for fairness evaluation.",
+            "type": "DATE",
+            "example": "1961-06-15",
+            "column_path": "Party.birth_date",
+            "sql_type": "DATE",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 45,
+              "unique_values": [
+                "1960-06-15",
+                "1961-06-15",
+                "1962-06-15",
+                "1963-06-15",
+                "1964-06-15",
+                "1965-06-15",
+                "1966-06-15",
+                "1967-06-15",
+                "1968-06-15",
+                "1969-06-15",
+                "1970-06-15",
+                "1971-06-15",
+                "1972-06-15",
+                "1973-06-15",
+                "1974-06-15",
+                "1975-06-15",
+                "1976-06-15",
+                "1977-06-15",
+                "1978-06-15",
+                "1979-06-15",
+                "1980-06-15",
+                "1981-06-15",
+                "1982-06-15",
+                "1983-06-15",
+                "1984-06-15",
+                "1985-06-15",
+                "1986-06-15",
+                "1987-06-15",
+                "1988-06-15",
+                "1989-06-15",
+                "1990-06-15",
+                "1991-06-15",
+                "1992-06-15",
+                "1993-06-15",
+                "1994-06-15",
+                "1995-06-15",
+                "1996-06-15",
+                "1997-06-15",
+                "1998-06-15",
+                "1999-06-15",
+                "2000-06-15",
+                "2001-06-15",
+                "2002-06-15",
+                "2003-06-15",
+                "2004-06-15"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "1960-06-15",
+                  "count": 35
+                },
+                {
+                  "value": "1961-06-15",
+                  "count": 24
+                },
+                {
+                  "value": "1962-06-15",
+                  "count": 26
+                },
+                {
+                  "value": "1963-06-15",
+                  "count": 24
+                },
+                {
+                  "value": "1964-06-15",
+                  "count": 24
+                },
+                {
+                  "value": "1965-06-15",
+                  "count": 35
+                },
+                {
+                  "value": "1966-06-15",
+                  "count": 26
+                },
+                {
+                  "value": "1967-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "1968-06-15",
+                  "count": 24
+                },
+                {
+                  "value": "1969-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "1970-06-15",
+                  "count": 35
+                },
+                {
+                  "value": "1971-06-15",
+                  "count": 24
+                },
+                {
+                  "value": "1972-06-15",
+                  "count": 25
+                },
+                {
+                  "value": "1973-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1974-06-15",
+                  "count": 24
+                },
+                {
+                  "value": "1975-06-15",
+                  "count": 34
+                },
+                {
+                  "value": "1976-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "1977-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1978-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "1979-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "1980-06-15",
+                  "count": 34
+                },
+                {
+                  "value": "1981-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1982-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "1983-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1984-06-15",
+                  "count": 24
+                },
+                {
+                  "value": "1985-06-15",
+                  "count": 35
+                },
+                {
+                  "value": "1986-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1987-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1988-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1989-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "1990-06-15",
+                  "count": 33
+                },
+                {
+                  "value": "1991-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "1992-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1993-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1994-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1995-06-15",
+                  "count": 33
+                },
+                {
+                  "value": "1996-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "1997-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "1998-06-15",
+                  "count": 25
+                },
+                {
+                  "value": "1999-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "2000-06-15",
+                  "count": 34
+                },
+                {
+                  "value": "2001-06-15",
+                  "count": 23
+                },
+                {
+                  "value": "2002-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "2003-06-15",
+                  "count": 22
+                },
+                {
+                  "value": "2004-06-15",
+                  "count": 24
+                }
+              ],
+              "min": "1960-06-15",
+              "max": "2004-06-15"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "establishment_date",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Party's date of establishment with Party.type = COMPANY. Where Party.type = CONSUMER, use NULL.",
+            "type": "DATE",
+            "example": null,
+            "column_path": "Party.establishment_date",
+            "sql_type": "DATE",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 1140,
+              "distinct_count": 0,
+              "unique_values": [],
+              "unique_values_complete": true,
+              "value_counts": []
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "occupation",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Most recent occupation of the Party, if known. Only relevant with Party.type = CONSUMER. Where Party.type = COMPANY, use NULL. If not known, use the empty string. Note that this field is not intended to capture employment level. For example, for a carpenter who is currently unemployed, this field should read \"Carpenter\".",
+            "type": "STRING",
+            "example": "Teacher",
+            "column_path": "Party.occupation",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 5,
+              "unique_values": [
+                "Accountant",
+                "Engineer",
+                "Nurse",
+                "Retail worker",
+                "Teacher"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "Accountant",
+                  "count": 186
+                },
+                {
+                  "value": "Engineer",
+                  "count": 244
+                },
+                {
+                  "value": "Nurse",
+                  "count": 241
+                },
+                {
+                  "value": "Retail worker",
+                  "count": 232
+                },
+                {
+                  "value": "Teacher",
+                  "count": 237
+                }
+              ]
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "gender",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Gender string for individuals. Typically used for fairness evaluation.",
+            "type": "STRING",
+            "example": "UNSPECIFIED",
+            "column_path": "Party.gender",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 3,
+              "unique_values": [
+                "FEMALE",
+                "MALE",
+                "UNSPECIFIED"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "FEMALE",
+                  "count": 387
+                },
+                {
+                  "value": "MALE",
+                  "count": 391
+                },
+                {
+                  "value": "UNSPECIFIED",
+                  "count": 362
+                }
+              ]
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "nationalities",
+            "mode": "REPEATED",
+            "description": "RECOMMENDED: One or more nationalities for natural persons, with an empty list in exceptional cases when your do not have information on the tax residency of the party. Empty for companies. Typically also used for fairness evaluation.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "region_code",
+                "mode": "REQUIRED",
+                "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format.",
+                "type": "STRING",
+                "column_path": "Party.nationalities.region_code",
+                "sql_type": "STRING",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "FR",
+                    "GB",
+                    "HK",
+                    "IE",
+                    "IN",
+                    "PL",
+                    "TW"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "FR",
+                      "count": 166
+                    },
+                    {
+                      "value": "GB",
+                      "count": 162
+                    },
+                    {
+                      "value": "HK",
+                      "count": 162
+                    },
+                    {
+                      "value": "IE",
+                      "count": 162
+                    },
+                    {
+                      "value": "IN",
+                      "count": 164
+                    },
+                    {
+                      "value": "PL",
+                      "count": 162
+                    },
+                    {
+                      "value": "TW",
+                      "count": 162
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              }
+            ],
+            "example": [
+              {
+                "region_code": "HK"
+              }
+            ],
+            "column_path": "Party.nationalities",
+            "sql_type": "ARRAY<STRUCT<region_code STRING>>",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "empty_array_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          },
+          {
+            "name": "residencies",
+            "mode": "REPEATED",
+            "description": "RECOMMENDED: One or more of the Party's tax residencies (for natural persons), with an empty list in exceptional cases. Empty list for companies.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "region_code",
+                "mode": "REQUIRED",
+                "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format.",
+                "type": "STRING",
+                "column_path": "Party.residencies.region_code",
+                "sql_type": "STRING",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "FR",
+                    "GB",
+                    "HK",
+                    "IE",
+                    "IN",
+                    "PL",
+                    "TW"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "FR",
+                      "count": 166
+                    },
+                    {
+                      "value": "GB",
+                      "count": 162
+                    },
+                    {
+                      "value": "HK",
+                      "count": 162
+                    },
+                    {
+                      "value": "IE",
+                      "count": 162
+                    },
+                    {
+                      "value": "IN",
+                      "count": 164
+                    },
+                    {
+                      "value": "PL",
+                      "count": 162
+                    },
+                    {
+                      "value": "TW",
+                      "count": 162
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              }
+            ],
+            "example": [
+              {
+                "region_code": "HK"
+              }
+            ],
+            "column_path": "Party.residencies",
+            "sql_type": "ARRAY<STRUCT<region_code STRING>>",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "empty_array_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          },
+          {
+            "name": "exit_date",
+            "mode": "NULLABLE",
+            "description": "MANDATORY: The date when the party stopped being a customer. Use NULL if the Party has not stopped being a customer.",
+            "type": "DATE",
+            "example": null,
+            "column_path": "Party.exit_date",
+            "sql_type": "DATE",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 1100,
+              "distinct_count": 14,
+              "unique_values": [
+                "2026-08-15",
+                "2026-08-16",
+                "2026-08-17",
+                "2026-08-18",
+                "2026-08-19",
+                "2026-08-20",
+                "2026-08-21",
+                "2026-08-22",
+                "2026-08-23",
+                "2026-08-24",
+                "2026-08-25",
+                "2026-08-26",
+                "2026-08-27",
+                "2026-08-29"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "2026-08-15",
+                  "count": 3
+                },
+                {
+                  "value": "2026-08-16",
+                  "count": 3
+                },
+                {
+                  "value": "2026-08-17",
+                  "count": 3
+                },
+                {
+                  "value": "2026-08-18",
+                  "count": 2
+                },
+                {
+                  "value": "2026-08-19",
+                  "count": 2
+                },
+                {
+                  "value": "2026-08-20",
+                  "count": 2
+                },
+                {
+                  "value": "2026-08-21",
+                  "count": 3
+                },
+                {
+                  "value": "2026-08-22",
+                  "count": 2
+                },
+                {
+                  "value": "2026-08-23",
+                  "count": 4
+                },
+                {
+                  "value": "2026-08-24",
+                  "count": 2
+                },
+                {
+                  "value": "2026-08-25",
+                  "count": 3
+                },
+                {
+                  "value": "2026-08-26",
+                  "count": 3
+                },
+                {
+                  "value": "2026-08-27",
+                  "count": 3
+                },
+                {
+                  "value": "2026-08-29",
+                  "count": 5
+                }
+              ],
+              "min": "2026-08-15",
+              "max": "2026-08-29"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "join_date",
+            "mode": "NULLABLE",
+            "description": "MANDATORY: Date when the Party first became your customer. Use NULL if the Party has been entered into your systems but has not yet opened an account.",
+            "type": "DATE",
+            "example": "2024-12-31",
+            "column_path": "Party.join_date",
+            "sql_type": "DATE",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 218,
+              "sample_values": [
+                "2024-09-04",
+                "2024-09-05",
+                "2024-09-06"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+              "min": "2024-09-04",
+              "max": "2026-06-29"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "assets_value_range",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Approximate value of assets held by the Party. Where possible, this estimate should include assets held by other financial institutions. Include at least the start or end amount.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "start_amount",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: The lower bound of the money range (inclusive) or NULL if there is no bound. If provided, it should be positive.",
+                "type": "RECORD",
+                "fields": [
+                  {
+                    "name": "currency_code",
+                    "mode": "REQUIRED",
+                    "description": "MANDATORY: The three-letter currency code defined in ISO 4217.",
+                    "type": "STRING",
+                    "column_path": "Party.assets_value_range.start_amount.currency_code",
+                    "sql_type": "STRING",
+                    "nullable": false,
+                    "observed_values": {
+                      "parent_record_count": 1140,
+                      "value_count": 1140,
+                      "null_count": 0,
+                      "distinct_count": 1,
+                      "unique_values": [
+                        "USD"
+                      ],
+                      "unique_values_complete": true,
+                      "value_counts": [
+                        {
+                          "value": "USD",
+                          "count": 1140
+                        }
+                      ]
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "units",
+                    "mode": "REQUIRED",
+                    "description": "MANDATORY: The whole units of the amount. For example, if currency_code is USD, then 1 unit is one US dollar.",
+                    "type": "INT64",
+                    "column_path": "Party.assets_value_range.start_amount.units",
+                    "sql_type": "INT64",
+                    "nullable": false,
+                    "observed_values": {
+                      "parent_record_count": 1140,
+                      "value_count": 1140,
+                      "null_count": 0,
+                      "distinct_count": 1,
+                      "unique_values": [
+                        10000
+                      ],
+                      "unique_values_complete": true,
+                      "value_counts": [
+                        {
+                          "value": 10000,
+                          "count": 1140
+                        }
+                      ],
+                      "min": 10000,
+                      "max": 10000
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "nanos",
+                    "mode": "REQUIRED",
+                    "description": "MANDATORY: Number of nano (10^-9) units of the amount. The value must be between 0 and 999,999,999, inclusive. Nanos must be positive or zero.",
+                    "type": "INT64",
+                    "column_path": "Party.assets_value_range.start_amount.nanos",
+                    "sql_type": "INT64",
+                    "nullable": false,
+                    "observed_values": {
+                      "parent_record_count": 1140,
+                      "value_count": 1140,
+                      "null_count": 0,
+                      "distinct_count": 1,
+                      "unique_values": [
+                        0
+                      ],
+                      "unique_values_complete": true,
+                      "value_counts": [
+                        {
+                          "value": 0,
+                          "count": 1140
+                        }
+                      ],
+                      "min": 0,
+                      "max": 0
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  }
+                ],
+                "column_path": "Party.assets_value_range.start_amount",
+                "sql_type": "STRUCT<currency_code STRING, units INT64, nanos INT64>",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "enumeration": "See nested fields; complete records are not enumerated"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null
+              },
+              {
+                "name": "end_amount",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: The upper bound of the money range (exclusive) or NULL if there is no bound.  If provided, it should be positive. The range represents a single value when start_amount is equal to end_amount.",
+                "type": "RECORD",
+                "fields": [
+                  {
+                    "name": "currency_code",
+                    "mode": "REQUIRED",
+                    "description": "MANDATORY: The three-letter currency code defined in ISO 4217.",
+                    "type": "STRING",
+                    "column_path": "Party.assets_value_range.end_amount.currency_code",
+                    "sql_type": "STRING",
+                    "nullable": false,
+                    "observed_values": {
+                      "parent_record_count": 1140,
+                      "value_count": 1140,
+                      "null_count": 0,
+                      "distinct_count": 1,
+                      "unique_values": [
+                        "USD"
+                      ],
+                      "unique_values_complete": true,
+                      "value_counts": [
+                        {
+                          "value": "USD",
+                          "count": 1140
+                        }
+                      ]
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "units",
+                    "mode": "REQUIRED",
+                    "description": "MANDATORY: The whole units of the amount. For example, if currency_code is USD, then 1 unit is one US dollar.",
+                    "type": "INT64",
+                    "column_path": "Party.assets_value_range.end_amount.units",
+                    "sql_type": "INT64",
+                    "nullable": false,
+                    "observed_values": {
+                      "parent_record_count": 1140,
+                      "value_count": 1140,
+                      "null_count": 0,
+                      "distinct_count": 1,
+                      "unique_values": [
+                        100000
+                      ],
+                      "unique_values_complete": true,
+                      "value_counts": [
+                        {
+                          "value": 100000,
+                          "count": 1140
+                        }
+                      ],
+                      "min": 100000,
+                      "max": 100000
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "nanos",
+                    "mode": "REQUIRED",
+                    "description": "MANDATORY: Number of nano (10^-9) units of the amount. The value must be between 0 and 999,999,999, inclusive. Nanos must be positive or zero.",
+                    "type": "INT64",
+                    "column_path": "Party.assets_value_range.end_amount.nanos",
+                    "sql_type": "INT64",
+                    "nullable": false,
+                    "observed_values": {
+                      "parent_record_count": 1140,
+                      "value_count": 1140,
+                      "null_count": 0,
+                      "distinct_count": 1,
+                      "unique_values": [
+                        0
+                      ],
+                      "unique_values_complete": true,
+                      "value_counts": [
+                        {
+                          "value": 0,
+                          "count": 1140
+                        }
+                      ],
+                      "min": 0,
+                      "max": 0
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  }
+                ],
+                "column_path": "Party.assets_value_range.end_amount",
+                "sql_type": "STRUCT<currency_code STRING, units INT64, nanos INT64>",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "enumeration": "See nested fields; complete records are not enumerated"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null
+              }
+            ],
+            "example": {
+              "start_amount": {
+                "currency_code": "USD",
+                "units": 10000,
+                "nanos": 0
+              },
+              "end_amount": {
+                "currency_code": "USD",
+                "units": 100000,
+                "nanos": 0
+              }
+            },
+            "column_path": "Party.assets_value_range",
+            "sql_type": "STRUCT<start_amount STRUCT<currency_code STRING, units INT64, nanos INT64>, end_amount STRUCT<currency_code STRING, units INT64, nanos INT64>>",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          },
+          {
+            "name": "phone_numbers",
+            "mode": "REPEATED",
+            "description": "EXPERIMENTAL: Zero or more phone numbers of this Party.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "type",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Type of this phone number. Supported Values: PERSONAL, CORPORATE One of: [PERSONAL:CORPORATE].",
+                "type": "STRING",
+                "column_path": "Party.phone_numbers.type",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 1,
+                  "unique_values": [
+                    "PERSONAL"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "PERSONAL",
+                      "count": 1140
+                    }
+                  ],
+                  "values_outside_declared_enum": []
+                },
+                "allowed_enum_values": [
+                  "PERSONAL",
+                  "CORPORATE"
+                ],
+                "enum_source": "Official input schema snapshot: field description",
+                "value_role": "category"
+              },
+              {
+                "name": "phone",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Phone number. Either this field or obfuscated_phone should be filled in.",
+                "type": "STRING",
+                "column_path": "Party.phone_numbers.phone",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 1140,
+                  "distinct_count": 0,
+                  "unique_values": [],
+                  "unique_values_complete": true,
+                  "value_counts": []
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "obfuscated_phone",
+                "mode": "NULLABLE",
+                "description": "MANDATORY: Phone number, obfuscated. Do not use NULL for this field.",
+                "type": "STRING",
+                "column_path": "Party.phone_numbers.obfuscated_phone",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 1000,
+                  "sample_values": [
+                    "HASE_HK_PHONE_0001",
+                    "HASE_HK_PHONE_0008",
+                    "HASE_HK_PHONE_0015"
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "Identifier values are not enumerated"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "identifier"
+              },
+              {
+                "name": "region_code",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: Region code in two-letter Unicode CLDR code format, if known.",
+                "type": "STRING",
+                "column_path": "Party.phone_numbers.region_code",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "FR",
+                    "GB",
+                    "HK",
+                    "IE",
+                    "IN",
+                    "PL",
+                    "TW"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "FR",
+                      "count": 166
+                    },
+                    {
+                      "value": "GB",
+                      "count": 162
+                    },
+                    {
+                      "value": "HK",
+                      "count": 162
+                    },
+                    {
+                      "value": "IE",
+                      "count": 162
+                    },
+                    {
+                      "value": "IN",
+                      "count": 164
+                    },
+                    {
+                      "value": "PL",
+                      "count": 162
+                    },
+                    {
+                      "value": "TW",
+                      "count": 162
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              }
+            ],
+            "example": [
+              {
+                "type": "PERSONAL",
+                "obfuscated_phone": "HASE_HK_PHONE_0001",
+                "region_code": "HK"
+              }
+            ],
+            "column_path": "Party.phone_numbers",
+            "sql_type": "ARRAY<STRUCT<type STRING, phone STRING, obfuscated_phone STRING, region_code STRING>>",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "empty_array_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          },
+          {
+            "name": "email_addresses",
+            "mode": "REPEATED",
+            "description": "EXPERIMENTAL: Zero or more email addresses of this Party.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "type",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Type of this email address. Supported values: PERSONAL, CORPORATE One of: [PERSONAL:CORPORATE].",
+                "type": "STRING",
+                "column_path": "Party.email_addresses.type",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 1,
+                  "unique_values": [
+                    "PERSONAL"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "PERSONAL",
+                      "count": 1140
+                    }
+                  ],
+                  "values_outside_declared_enum": []
+                },
+                "allowed_enum_values": [
+                  "PERSONAL",
+                  "CORPORATE"
+                ],
+                "enum_source": "Official input schema snapshot: field description",
+                "value_role": "category"
+              },
+              {
+                "name": "email",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Email address. Either this field or obfuscated_email should be filled in.",
+                "type": "STRING",
+                "column_path": "Party.email_addresses.email",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 1000,
+                  "sample_values": [
+                    "customer0001@example.invalid",
+                    "customer0002@example.invalid",
+                    "customer0003@example.invalid"
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "obfuscated_email",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Email address, obfuscated.",
+                "type": "STRING",
+                "column_path": "Party.email_addresses.obfuscated_email",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 1140,
+                  "distinct_count": 0,
+                  "unique_values": [],
+                  "unique_values_complete": true,
+                  "value_counts": []
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "region_code",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: Region code in two-letter Unicode CLDR code format, if known.",
+                "type": "STRING",
+                "column_path": "Party.email_addresses.region_code",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 1140,
+                  "value_count": 1140,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "FR",
+                    "GB",
+                    "HK",
+                    "IE",
+                    "IN",
+                    "PL",
+                    "TW"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "FR",
+                      "count": 166
+                    },
+                    {
+                      "value": "GB",
+                      "count": 162
+                    },
+                    {
+                      "value": "HK",
+                      "count": 162
+                    },
+                    {
+                      "value": "IE",
+                      "count": 162
+                    },
+                    {
+                      "value": "IN",
+                      "count": 164
+                    },
+                    {
+                      "value": "PL",
+                      "count": 162
+                    },
+                    {
+                      "value": "TW",
+                      "count": 162
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              }
+            ],
+            "example": [
+              {
+                "type": "PERSONAL",
+                "email": "customer0001@example.invalid",
+                "region_code": "HK"
+              }
+            ],
+            "column_path": "Party.email_addresses",
+            "sql_type": "ARRAY<STRUCT<type STRING, email STRING, obfuscated_email STRING, region_code STRING>>",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "empty_array_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          },
+          {
+            "name": "education_level_code",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Most recent educational level of the Party, defined in International Standard Classification of Education (ISCED-11). If not known, use UNKNOWN. Based on standard ISCED-Attainment (ISCED-A) coding. One of: [LESS_THAN_PRIMARY_EDUCATION:PRIMARY_EDUCATION:LOWER_SECONDARY_EDUCATION:UPPER_SECONDARY_EDUCATION:POST_SECONDARY_NON_TERTIARY_EDUCATION:SHORT_CYCLE_TERTIARY_EDUCATION:BACHELORS_OR_EQUIVALENT:MASTERS_OR_EQUIVALENT:DOCTORAL_OR_EQUIVALENT:NOT_ELSEWHERE_CLASSIFIED:UNKNOWN].",
+            "type": "STRING",
+            "example": "UNKNOWN",
+            "column_path": "Party.education_level_code",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1140,
+              "value_count": 1140,
+              "null_count": 0,
+              "distinct_count": 1,
+              "unique_values": [
+                "UNKNOWN"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "UNKNOWN",
+                  "count": 1140
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "LESS_THAN_PRIMARY_EDUCATION",
+              "PRIMARY_EDUCATION",
+              "LOWER_SECONDARY_EDUCATION",
+              "UPPER_SECONDARY_EDUCATION",
+              "POST_SECONDARY_NON_TERTIARY_EDUCATION",
+              "SHORT_CYCLE_TERTIARY_EDUCATION",
+              "BACHELORS_OR_EQUIVALENT",
+              "MASTERS_OR_EQUIVALENT",
+              "DOCTORAL_OR_EQUIVALENT",
+              "NOT_ELSEWHERE_CLASSIFIED",
+              "UNKNOWN"
+            ],
+            "enum_source": "Official input schema snapshot: field description",
+            "value_role": "category"
+          }
+        ],
+        "row_count": 1140,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.Party",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "AccountPartyLink",
+        "classification": "MANDATORY",
+        "description": "Represents how parties are related to accounts, including all account holders (not just primary) and joint holdings.",
+        "primary_key": [
+          "account_id",
+          "party_id",
+          "validity_start_time"
+        ],
+        "fields": [
+          {
+            "name": "account_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Unique ID for this Account.",
+            "type": "STRING",
+            "example": "HASE_HK_A0001",
+            "column_path": "AccountPartyLink.account_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_A0001",
+                "HASE_HK_A0008",
+                "HASE_HK_A0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Unique ID for this Party in the Party table.",
+            "type": "STRING",
+            "references": "Party.party_id",
+            "example": "HASE_HK_P0001",
+            "column_path": "AccountPartyLink.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_P0001",
+                "HASE_HK_P0008",
+                "HASE_HK_P0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "validity_start_time",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Timestamp when the information of this row was in the correct state for the entity.",
+            "type": "TIMESTAMP",
+            "example": "2026-01-01T00:00:00Z",
+            "column_path": "AccountPartyLink.validity_start_time",
+            "sql_type": "TIMESTAMP",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 98,
+              "sample_values": [
+                "2026-01-01T00:00:00Z",
+                "2026-01-03T00:00:00Z",
+                "2026-01-04T00:00:00Z"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+              "min": "2026-01-01T00:00:00Z",
+              "max": "2026-06-29T00:00:00Z"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "is_entity_deleted",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: If set to TRUE, indicates the link is no longer present.",
+            "type": "BOOL",
+            "example": false,
+            "column_path": "AccountPartyLink.is_entity_deleted",
+            "sql_type": "BOOL",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 1,
+              "unique_values": [
+                false
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": false,
+                  "count": 1000
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              false,
+              true
+            ],
+            "enum_source": "Boolean data type",
+            "value_role": "category"
+          },
+          {
+            "name": "role",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Describes how the party is related to the account. In particular, capturing primary and secondary account holders. Each Account should have at least one PRIMARY_HOLDER at any given time. Do not use NULL for this field. Supported values: PRIMARY_HOLDER - a party designated as the main (or joint main) holder of the account. SECONDARY_HOLDER - another party who is not the main account holder but with similar access and similar level of responsibility. SUPPLEMENTARY_HOLDER - any other party with either significantly reduced access or significantly reduced responsibility for the account. One of: [PRIMARY_HOLDER:SECONDARY_HOLDER:SUPPLEMENTARY_HOLDER].",
+            "type": "STRING",
+            "example": "PRIMARY_HOLDER",
+            "column_path": "AccountPartyLink.role",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 1,
+              "unique_values": [
+                "PRIMARY_HOLDER"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "PRIMARY_HOLDER",
+                  "count": 1000
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "PRIMARY_HOLDER",
+              "SECONDARY_HOLDER",
+              "SUPPLEMENTARY_HOLDER"
+            ],
+            "enum_source": "Official input schema snapshot: field description",
+            "value_role": "category"
+          },
+          {
+            "name": "source_system",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality.",
+            "type": "STRING",
+            "example": "HASE_HK_CORE",
+            "column_path": "AccountPartyLink.source_system",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 7,
+              "unique_values": [
+                "HASE_HK_CORE",
+                "HSBC_FR_CORE",
+                "HSBC_GB_CORE",
+                "HSBC_IE_CORE",
+                "HSBC_IN_CORE",
+                "HSBC_PL_CORE",
+                "HSBC_TW_CORE"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "HASE_HK_CORE",
+                  "count": 143
+                },
+                {
+                  "value": "HSBC_FR_CORE",
+                  "count": 143
+                },
+                {
+                  "value": "HSBC_GB_CORE",
+                  "count": 143
+                },
+                {
+                  "value": "HSBC_IE_CORE",
+                  "count": 142
+                },
+                {
+                  "value": "HSBC_IN_CORE",
+                  "count": 143
+                },
+                {
+                  "value": "HSBC_PL_CORE",
+                  "count": 143
+                },
+                {
+                  "value": "HSBC_TW_CORE",
+                  "count": 143
+                }
+              ]
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          }
+        ],
+        "row_count": 1000,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.AccountPartyLink",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "Transaction",
+        "classification": "MANDATORY",
+        "description": "Represents a movement of funds from or to an account; helps models understand the flow of money.",
+        "primary_key": [
+          "transaction_id",
+          "validity_start_time"
+        ],
+        "fields": [
+          {
+            "name": "transaction_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Unique ID of this transaction, from the point of view of the specified Account. Note that a transfer is between two accounts, both in the Account table, and should be represented by two transactions with separate transaction IDs, one with direction = DEBIT and one with direction = CREDIT.",
+            "type": "STRING",
+            "example": "HSBC_TW_T000001",
+            "column_path": "Transaction.transaction_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "distinct_count": 50000,
+              "sample_values": [
+                "HASE_HK_T000241",
+                "HASE_HK_T000242",
+                "HASE_HK_T000243"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "validity_start_time",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Timestamp when the information of this row was the correct state of the entity.",
+            "type": "TIMESTAMP",
+            "example": "2026-02-05T00:00:00Z",
+            "column_path": "Transaction.validity_start_time",
+            "sql_type": "TIMESTAMP",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "distinct_count": 47697,
+              "sample_values": [
+                "2026-01-01T00:11:48Z",
+                "2026-01-01T00:19:11Z",
+                "2026-01-01T00:19:35Z"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+              "min": "2026-01-01T00:11:48Z",
+              "max": "2026-08-31T23:57:24Z"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "is_entity_deleted",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: If set to TRUE, indicates the Transaction is no longer present in your system of record.",
+            "type": "BOOL",
+            "example": false,
+            "column_path": "Transaction.is_entity_deleted",
+            "sql_type": "BOOL",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "distinct_count": 1,
+              "unique_values": [
+                false
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": false,
+                  "count": 50000
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              false,
+              true
+            ],
+            "enum_source": "Boolean data type",
+            "value_role": "category"
+          },
+          {
+            "name": "source_system",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality.",
+            "type": "STRING",
+            "example": "HSBC_TW_CORE",
+            "column_path": "Transaction.source_system",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "distinct_count": 7,
+              "unique_values": [
+                "HASE_HK_CORE",
+                "HSBC_FR_CORE",
+                "HSBC_GB_CORE",
+                "HSBC_IE_CORE",
+                "HSBC_IN_CORE",
+                "HSBC_PL_CORE",
+                "HSBC_TW_CORE"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "HASE_HK_CORE",
+                  "count": 7286
+                },
+                {
+                  "value": "HSBC_FR_CORE",
+                  "count": 7378
+                },
+                {
+                  "value": "HSBC_GB_CORE",
+                  "count": 6964
+                },
+                {
+                  "value": "HSBC_IE_CORE",
+                  "count": 6979
+                },
+                {
+                  "value": "HSBC_IN_CORE",
+                  "count": 7274
+                },
+                {
+                  "value": "HSBC_PL_CORE",
+                  "count": 6983
+                },
+                {
+                  "value": "HSBC_TW_CORE",
+                  "count": 7136
+                }
+              ]
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "type",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: High level type of the transaction. Supported values: CARD, transaction involving a credit or debit card (includes GPay); CASH, transaction where cash is paid into or withdrawn from an account; CHECK, transaction where a cheque is used; WIRE, default for other transactions, including transfers between accounts at the same or different banks. One of: [WIRE:CASH:CHECK:CARD:OTHER:CRYPTO].",
+            "type": "STRING",
+            "example": "CASH",
+            "column_path": "Transaction.type",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "distinct_count": 6,
+              "unique_values": [
+                "CARD",
+                "CASH",
+                "CHECK",
+                "CRYPTO",
+                "OTHER",
+                "WIRE"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "CARD",
+                  "count": 23882
+                },
+                {
+                  "value": "CASH",
+                  "count": 7764
+                },
+                {
+                  "value": "CHECK",
+                  "count": 1858
+                },
+                {
+                  "value": "CRYPTO",
+                  "count": 463
+                },
+                {
+                  "value": "OTHER",
+                  "count": 912
+                },
+                {
+                  "value": "WIRE",
+                  "count": 15121
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "WIRE",
+              "CASH",
+              "CHECK",
+              "CARD",
+              "OTHER",
+              "CRYPTO"
+            ],
+            "enum_source": "Official input schema snapshot: field description",
+            "value_role": "category"
+          },
+          {
+            "name": "direction",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Direction of the transaction assets flow from the point of view of the specified account ID. Uses common definition of credit/debit in banking. Supported values: DEBIT, represents a transfer of value from this account; CREDIT, represents a transfer of value to this account One of: [DEBIT:CREDIT].",
+            "type": "STRING",
+            "example": "CREDIT",
+            "column_path": "Transaction.direction",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "distinct_count": 2,
+              "unique_values": [
+                "CREDIT",
+                "DEBIT"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "CREDIT",
+                  "count": 13035
+                },
+                {
+                  "value": "DEBIT",
+                  "count": 36965
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "DEBIT",
+              "CREDIT"
+            ],
+            "enum_source": "Official input schema snapshot: field description",
+            "value_role": "category"
+          },
+          {
+            "name": "account_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Account ID of the Account in the Account Party Link table.",
+            "type": "STRING",
+            "references": "AccountPartyLink.account_id",
+            "example": "HSBC_TW_A0004",
+            "column_path": "Transaction.account_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_A0001",
+                "HASE_HK_A0008",
+                "HASE_HK_A0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "counterparty_account",
+            "mode": "NULLABLE",
+            "description": "MANDATORY: Details of counterparty and their account used in this transaction. Relates specifically to WIRE, CASH and CHECK transactions. For CARD transactions, this may represent the merchant or be NULL in case you do not have these details.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "account_id",
+                "mode": "NULLABLE",
+                "description": "MANDATORY: Account ID of a transaction's counterparty, if in the AccountPartyLink table. Can be NULL if the counterparty account is not represented in the Account Party Link table, for example, the customer of another financial institution.",
+                "type": "STRING",
+                "column_path": "Transaction.counterparty_account.account_id",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 50000,
+                  "distinct_count": 0,
+                  "sample_values": [],
+                  "unique_values_complete": true,
+                  "enumeration_omitted_reason": "Identifier values are not enumerated"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "identifier"
+              },
+              {
+                "name": "counterparty_name",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: Name of the counterparty.",
+                "type": "STRING",
+                "column_path": "Transaction.counterparty_account.counterparty_name",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 0,
+                  "distinct_count": 3500,
+                  "sample_values": [
+                    "External FR Counterparty 0001",
+                    "External FR Counterparty 0002",
+                    "External FR Counterparty 0003"
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "addresses",
+                "mode": "REPEATED",
+                "description": "EXPERIMENTAL: Counterparty address, if known.",
+                "type": "RECORD",
+                "fields": [
+                  {
+                    "name": "address_line",
+                    "mode": "NULLABLE",
+                    "description": "RECOMMENDED: First line of address in case not captured by street and building number.",
+                    "type": "STRING",
+                    "column_path": "Transaction.counterparty_account.addresses.address_line",
+                    "sql_type": "STRING",
+                    "nullable": true,
+                    "observed_values": {
+                      "parent_record_count": 0,
+                      "value_count": 0,
+                      "null_count": 0,
+                      "distinct_count": 0,
+                      "unique_values": [],
+                      "unique_values_complete": true,
+                      "value_counts": []
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "street",
+                    "mode": "NULLABLE",
+                    "description": "RECOMMENDED: Street of the address.",
+                    "type": "STRING",
+                    "column_path": "Transaction.counterparty_account.addresses.street",
+                    "sql_type": "STRING",
+                    "nullable": true,
+                    "observed_values": {
+                      "parent_record_count": 0,
+                      "value_count": 0,
+                      "null_count": 0,
+                      "distinct_count": 0,
+                      "unique_values": [],
+                      "unique_values_complete": true,
+                      "value_counts": []
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "building_number",
+                    "mode": "NULLABLE",
+                    "description": "RECOMMENDED: Building number of the address.",
+                    "type": "STRING",
+                    "column_path": "Transaction.counterparty_account.addresses.building_number",
+                    "sql_type": "STRING",
+                    "nullable": true,
+                    "observed_values": {
+                      "parent_record_count": 0,
+                      "value_count": 0,
+                      "null_count": 0,
+                      "distinct_count": 0,
+                      "unique_values": [],
+                      "unique_values_complete": true,
+                      "value_counts": []
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "post_office_box",
+                    "mode": "NULLABLE",
+                    "description": "RECOMMENDED: PO Box identifier in case the address is a PO Box.",
+                    "type": "STRING",
+                    "column_path": "Transaction.counterparty_account.addresses.post_office_box",
+                    "sql_type": "STRING",
+                    "nullable": true,
+                    "observed_values": {
+                      "parent_record_count": 0,
+                      "value_count": 0,
+                      "null_count": 0,
+                      "distinct_count": 0,
+                      "unique_values": [],
+                      "unique_values_complete": true,
+                      "value_counts": []
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "post_code",
+                    "mode": "NULLABLE",
+                    "description": "RECOMMENDED: Postcode. Include postcode for each Party where this is known to the bank.",
+                    "type": "STRING",
+                    "column_path": "Transaction.counterparty_account.addresses.post_code",
+                    "sql_type": "STRING",
+                    "nullable": true,
+                    "observed_values": {
+                      "parent_record_count": 0,
+                      "value_count": 0,
+                      "null_count": 0,
+                      "distinct_count": 0,
+                      "unique_values": [],
+                      "unique_values_complete": true,
+                      "value_counts": []
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "town",
+                    "mode": "NULLABLE",
+                    "description": "RECOMMENDED: Town of the address.",
+                    "type": "STRING",
+                    "column_path": "Transaction.counterparty_account.addresses.town",
+                    "sql_type": "STRING",
+                    "nullable": true,
+                    "observed_values": {
+                      "parent_record_count": 0,
+                      "value_count": 0,
+                      "null_count": 0,
+                      "distinct_count": 0,
+                      "unique_values": [],
+                      "unique_values_complete": true,
+                      "value_counts": []
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "subregion",
+                    "mode": "NULLABLE",
+                    "description": "MANDATORY: Region within the country. For AML do not use NULL for this field.",
+                    "type": "STRING",
+                    "column_path": "Transaction.counterparty_account.addresses.subregion",
+                    "sql_type": "STRING",
+                    "nullable": true,
+                    "observed_values": {
+                      "parent_record_count": 0,
+                      "value_count": 0,
+                      "null_count": 0,
+                      "distinct_count": 0,
+                      "unique_values": [],
+                      "unique_values_complete": true,
+                      "value_counts": []
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  },
+                  {
+                    "name": "region_code",
+                    "mode": "NULLABLE",
+                    "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format. Do not use NULL for this field.",
+                    "type": "STRING",
+                    "column_path": "Transaction.counterparty_account.addresses.region_code",
+                    "sql_type": "STRING",
+                    "nullable": true,
+                    "observed_values": {
+                      "parent_record_count": 0,
+                      "value_count": 0,
+                      "null_count": 0,
+                      "distinct_count": 0,
+                      "unique_values": [],
+                      "unique_values_complete": true,
+                      "value_counts": []
+                    },
+                    "allowed_enum_values": null,
+                    "enum_source": null,
+                    "value_role": "attribute"
+                  }
+                ],
+                "column_path": "Transaction.counterparty_account.addresses",
+                "sql_type": "ARRAY<STRUCT<address_line STRING, street STRING, building_number STRING, post_office_box STRING, post_code STRING, town STRING, subregion STRING, region_code STRING>>",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 0,
+                  "null_count": 0,
+                  "empty_array_count": 50000,
+                  "enumeration": "See nested fields; complete records are not enumerated"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null
+              },
+              {
+                "name": "region_code",
+                "mode": "NULLABLE",
+                "description": "RECOMMENDED: Country or region of the counterparty account in two-letter Unicode CLDR code format. In the case of cash withdrawals or deposits, this should be the country where the cash was withdrawn or deposited.",
+                "type": "STRING",
+                "column_path": "Transaction.counterparty_account.region_code",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "FR",
+                    "GB",
+                    "HK",
+                    "IE",
+                    "IN",
+                    "PL",
+                    "TW"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "FR",
+                      "count": 7361
+                    },
+                    {
+                      "value": "GB",
+                      "count": 6937
+                    },
+                    {
+                      "value": "HK",
+                      "count": 7248
+                    },
+                    {
+                      "value": "IE",
+                      "count": 6957
+                    },
+                    {
+                      "value": "IN",
+                      "count": 7273
+                    },
+                    {
+                      "value": "PL",
+                      "count": 7083
+                    },
+                    {
+                      "value": "TW",
+                      "count": 7141
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              }
+            ],
+            "references": "AccountPartyLink.account_id (optional, may be external institution)",
+            "example": {
+              "account_id": null,
+              "counterparty_name": "External TW Counterparty 0092",
+              "addresses": [],
+              "region_code": "TW"
+            },
+            "column_path": "Transaction.counterparty_account",
+            "sql_type": "STRUCT<account_id STRING, counterparty_name STRING, addresses ARRAY<STRUCT<address_line STRING, street STRING, building_number STRING, post_office_box STRING, post_code STRING, town STRING, subregion STRING, region_code STRING>>, region_code STRING>",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          },
+          {
+            "name": "book_time",
+            "mode": "NULLABLE",
+            "description": "MANDATORY: The time when the transaction was posted to the account (recommended). You may use a different time if preferred by your internal processes and controls.",
+            "type": "TIMESTAMP",
+            "example": "2026-02-05T00:00:00Z",
+            "column_path": "Transaction.book_time",
+            "sql_type": "TIMESTAMP",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "distinct_count": 47697,
+              "sample_values": [
+                "2026-01-01T00:11:48Z",
+                "2026-01-01T00:19:11Z",
+                "2026-01-01T00:19:35Z"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+              "min": "2026-01-01T00:11:48Z",
+              "max": "2026-08-31T23:57:24Z"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "normalized_booked_amount",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Non-negative booked amount posted on the party's account, normalized to a standard currency for the whole dataset.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "currency_code",
+                "mode": "REQUIRED",
+                "description": "MANDATORY: The three-letter currency code defined in ISO 4217.",
+                "type": "STRING",
+                "column_path": "Transaction.normalized_booked_amount.currency_code",
+                "sql_type": "STRING",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 0,
+                  "distinct_count": 1,
+                  "unique_values": [
+                    "USD"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "USD",
+                      "count": 50000
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "units",
+                "mode": "REQUIRED",
+                "description": "MANDATORY: The whole units of the amount. For example, if currency_code is USD, then 1 unit is one US dollar.",
+                "type": "INT64",
+                "column_path": "Transaction.normalized_booked_amount.units",
+                "sql_type": "INT64",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 0,
+                  "distinct_count": 3104,
+                  "sample_values": [
+                    1,
+                    10,
+                    100
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+                  "min": 1,
+                  "max": 17978
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "nanos",
+                "mode": "REQUIRED",
+                "description": "MANDATORY: Number of nano (10^-9) units of the amount. The value must be between 0 and 999,999,999, inclusive. Nanos must be positive or zero.",
+                "type": "INT64",
+                "column_path": "Transaction.normalized_booked_amount.nanos",
+                "sql_type": "INT64",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 0,
+                  "distinct_count": 100,
+                  "sample_values": [
+                    0,
+                    10000000,
+                    100000000
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+                  "min": 0,
+                  "max": 990000000
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              }
+            ],
+            "example": {
+              "currency_code": "USD",
+              "units": 2685,
+              "nanos": 680000000
+            },
+            "column_path": "Transaction.normalized_booked_amount",
+            "sql_type": "STRUCT<currency_code STRING, units INT64, nanos INT64>",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          },
+          {
+            "name": "ip_address",
+            "mode": "NULLABLE",
+            "description": "EXPERIMENTAL: Ip address from which the transaction was booked.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "type",
+                "mode": "NULLABLE",
+                "description": "MANDATORY: IP address type. One of: [V4:V6].",
+                "type": "STRING",
+                "column_path": "Transaction.ip_address.type",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 0,
+                  "distinct_count": 1,
+                  "unique_values": [
+                    "V4"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "V4",
+                      "count": 50000
+                    }
+                  ],
+                  "values_outside_declared_enum": []
+                },
+                "allowed_enum_values": [
+                  "V4",
+                  "V6"
+                ],
+                "enum_source": "Official input schema snapshot: field description",
+                "value_role": "category"
+              },
+              {
+                "name": "ip",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: IP address.",
+                "type": "STRING",
+                "column_path": "Transaction.ip_address.ip",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 0,
+                  "distinct_count": 254,
+                  "sample_values": [
+                    "192.0.2.1",
+                    "192.0.2.10",
+                    "192.0.2.100"
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "obfuscated_ip",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: IP address, obfuscated.",
+                "type": "STRING",
+                "column_path": "Transaction.ip_address.obfuscated_ip",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 50000,
+                  "distinct_count": 0,
+                  "unique_values": [],
+                  "unique_values_complete": true,
+                  "value_counts": []
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "region_code",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: Region code extracted from the IP address in two-letter Unicode CLDR code format, if known.",
+                "type": "STRING",
+                "column_path": "Transaction.ip_address.region_code",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "FR",
+                    "GB",
+                    "HK",
+                    "IE",
+                    "IN",
+                    "PL",
+                    "TW"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "FR",
+                      "count": 7378
+                    },
+                    {
+                      "value": "GB",
+                      "count": 6964
+                    },
+                    {
+                      "value": "HK",
+                      "count": 7286
+                    },
+                    {
+                      "value": "IE",
+                      "count": 6979
+                    },
+                    {
+                      "value": "IN",
+                      "count": 7274
+                    },
+                    {
+                      "value": "PL",
+                      "count": 6983
+                    },
+                    {
+                      "value": "TW",
+                      "count": 7136
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "is_vpn",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: Whether a VPN service was used.",
+                "type": "BOOL",
+                "column_path": "Transaction.ip_address.is_vpn",
+                "sql_type": "BOOL",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 50000,
+                  "value_count": 50000,
+                  "null_count": 0,
+                  "distinct_count": 1,
+                  "unique_values": [
+                    false
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": false,
+                      "count": 50000
+                    }
+                  ],
+                  "values_outside_declared_enum": []
+                },
+                "allowed_enum_values": [
+                  false,
+                  true
+                ],
+                "enum_source": "Boolean data type",
+                "value_role": "category"
+              }
+            ],
+            "example": {
+              "type": "V4",
+              "ip": "192.0.2.5",
+              "region_code": "TW",
+              "is_vpn": false
+            },
+            "column_path": "Transaction.ip_address",
+            "sql_type": "STRUCT<type STRING, ip STRING, obfuscated_ip STRING, region_code STRING, is_vpn BOOL>",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 50000,
+              "value_count": 50000,
+              "null_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          }
+        ],
+        "row_count": 50000,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.Transaction",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "InteractionEvent",
+        "classification": "EXPERIMENTAL",
+        "description": "A subset of AML-relevant interactions between the party and the bank, e.g. a login event to online banking.",
+        "primary_key": [
+          "interaction_event_id"
+        ],
+        "fields": [
+          {
+            "name": "interaction_event_id",
+            "mode": "REQUIRED",
+            "description": "EXPERIMENTAL: Unique interaction event ID string.",
+            "type": "STRING",
+            "example": "HASE_HK_I0001_00",
+            "column_path": "InteractionEvent.interaction_event_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 12000,
+              "value_count": 12000,
+              "null_count": 0,
+              "distinct_count": 12000,
+              "sample_values": [
+                "HASE_HK_I0001_00",
+                "HASE_HK_I0001_01",
+                "HASE_HK_I0001_02"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "EXPERIMENTAL: Interacting party ID.",
+            "type": "STRING",
+            "references": "Party.party_id",
+            "example": "HASE_HK_P0001",
+            "column_path": "InteractionEvent.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 12000,
+              "value_count": 12000,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_P0001",
+                "HASE_HK_P0008",
+                "HASE_HK_P0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "account_id",
+            "mode": "NULLABLE",
+            "description": "EXPERIMENTAL: The ID of an account directly related to this event, if any.",
+            "type": "STRING",
+            "references": "AccountPartyLink.account_id (optional)",
+            "example": "HASE_HK_A0001",
+            "column_path": "InteractionEvent.account_id",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 12000,
+              "value_count": 12000,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_A0001",
+                "HASE_HK_A0008",
+                "HASE_HK_A0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "type",
+            "mode": "REQUIRED",
+            "description": "EXPERIMENTAL: Type of the interaction event. Must be one of the enum values. Make sure to check the documentation on this field. One of: [LOGIN:PAYMENT_METHOD_ADDED:KYC_CHANGE:PASSWORD_CHANGE:OTHER].",
+            "type": "STRING",
+            "example": "LOGIN",
+            "column_path": "InteractionEvent.type",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 12000,
+              "value_count": 12000,
+              "null_count": 0,
+              "distinct_count": 1,
+              "unique_values": [
+                "LOGIN"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "LOGIN",
+                  "count": 12000
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "LOGIN",
+              "PAYMENT_METHOD_ADDED",
+              "KYC_CHANGE",
+              "PASSWORD_CHANGE",
+              "OTHER"
+            ],
+            "enum_source": "Official input schema snapshot: field description",
+            "value_role": "category"
+          },
+          {
+            "name": "event_time",
+            "mode": "REQUIRED",
+            "description": "EXPERIMENTAL: Time when the event happened.",
+            "type": "TIMESTAMP",
+            "example": "2026-05-23T17:18:43Z",
+            "column_path": "InteractionEvent.event_time",
+            "sql_type": "TIMESTAMP",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 12000,
+              "value_count": 12000,
+              "null_count": 0,
+              "distinct_count": 11999,
+              "sample_values": [
+                "2026-01-01T00:02:31Z",
+                "2026-01-01T00:18:34Z",
+                "2026-01-01T00:23:31Z"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+              "min": "2026-01-01T00:02:31Z",
+              "max": "2026-08-31T22:58:43Z"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "ip_address",
+            "mode": "NULLABLE",
+            "description": "EXPERIMENTAL: IP address of the device that the Party is using for this interaction.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "type",
+                "mode": "NULLABLE",
+                "description": "MANDATORY: IP address type. One of: [V4:V6].",
+                "type": "STRING",
+                "column_path": "InteractionEvent.ip_address.type",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 12000,
+                  "value_count": 12000,
+                  "null_count": 0,
+                  "distinct_count": 1,
+                  "unique_values": [
+                    "V4"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "V4",
+                      "count": 12000
+                    }
+                  ],
+                  "values_outside_declared_enum": []
+                },
+                "allowed_enum_values": [
+                  "V4",
+                  "V6"
+                ],
+                "enum_source": "Official input schema snapshot: field description",
+                "value_role": "category"
+              },
+              {
+                "name": "ip",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: IP address.",
+                "type": "STRING",
+                "column_path": "InteractionEvent.ip_address.ip",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 12000,
+                  "value_count": 12000,
+                  "null_count": 0,
+                  "distinct_count": 254,
+                  "sample_values": [
+                    "192.0.2.1",
+                    "192.0.2.10",
+                    "192.0.2.100"
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "obfuscated_ip",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: IP address, obfuscated.",
+                "type": "STRING",
+                "column_path": "InteractionEvent.ip_address.obfuscated_ip",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 12000,
+                  "value_count": 12000,
+                  "null_count": 12000,
+                  "distinct_count": 0,
+                  "unique_values": [],
+                  "unique_values_complete": true,
+                  "value_counts": []
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "region_code",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: Region code extracted from the IP address in two-letter Unicode CLDR code format, if known.",
+                "type": "STRING",
+                "column_path": "InteractionEvent.ip_address.region_code",
+                "sql_type": "STRING",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 12000,
+                  "value_count": 12000,
+                  "null_count": 0,
+                  "distinct_count": 7,
+                  "unique_values": [
+                    "FR",
+                    "GB",
+                    "HK",
+                    "IE",
+                    "IN",
+                    "PL",
+                    "TW"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "FR",
+                      "count": 1716
+                    },
+                    {
+                      "value": "GB",
+                      "count": 1716
+                    },
+                    {
+                      "value": "HK",
+                      "count": 1716
+                    },
+                    {
+                      "value": "IE",
+                      "count": 1704
+                    },
+                    {
+                      "value": "IN",
+                      "count": 1716
+                    },
+                    {
+                      "value": "PL",
+                      "count": 1716
+                    },
+                    {
+                      "value": "TW",
+                      "count": 1716
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "is_vpn",
+                "mode": "NULLABLE",
+                "description": "EXPERIMENTAL: Whether a VPN service was used.",
+                "type": "BOOL",
+                "column_path": "InteractionEvent.ip_address.is_vpn",
+                "sql_type": "BOOL",
+                "nullable": true,
+                "observed_values": {
+                  "parent_record_count": 12000,
+                  "value_count": 12000,
+                  "null_count": 0,
+                  "distinct_count": 1,
+                  "unique_values": [
+                    false
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": false,
+                      "count": 12000
+                    }
+                  ],
+                  "values_outside_declared_enum": []
+                },
+                "allowed_enum_values": [
+                  false,
+                  true
+                ],
+                "enum_source": "Boolean data type",
+                "value_role": "category"
+              }
+            ],
+            "example": {
+              "type": "V4",
+              "ip": "192.0.2.2",
+              "region_code": "HK",
+              "is_vpn": false
+            },
+            "column_path": "InteractionEvent.ip_address",
+            "sql_type": "STRUCT<type STRING, ip STRING, obfuscated_ip STRING, region_code STRING, is_vpn BOOL>",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 12000,
+              "value_count": 12000,
+              "null_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          }
+        ],
+        "row_count": 12000,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.InteractionEvent",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "RiskCaseEvent",
+        "classification": "MANDATORY",
+        "description": "Tracks the progress of a risk case from the initial alert to the case outcome; supports creation of training labels for training, tuning, and backtesting of models.",
+        "primary_key": [
+          "risk_case_event_id"
+        ],
+        "fields": [
+          {
+            "name": "risk_case_event_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Unique ID for this event.",
+            "type": "STRING",
+            "example": "HSBC_TW_E000_0",
+            "column_path": "RiskCaseEvent.risk_case_event_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 565,
+              "value_count": 565,
+              "null_count": 0,
+              "distinct_count": 565,
+              "sample_values": [
+                "HASE_HK_E009_0",
+                "HASE_HK_E009_1",
+                "HASE_HK_E009_2"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "event_time",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Timestamp when this event occurs.",
+            "type": "TIMESTAMP",
+            "example": "2026-02-05T00:00:00Z",
+            "column_path": "RiskCaseEvent.event_time",
+            "sql_type": "TIMESTAMP",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 565,
+              "value_count": 565,
+              "null_count": 0,
+              "distinct_count": 96,
+              "sample_values": [
+                "2026-02-05T00:00:00Z",
+                "2026-02-08T00:00:00Z",
+                "2026-02-09T22:00:00Z"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+              "min": "2026-02-05T00:00:00Z",
+              "max": "2026-08-29T00:00:00Z"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "type",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Type of risk case event. Only AML events are supported. The minimum requirement for the AML product to work is to provide a single AML_PROCESS_START, AML_PROCESS_END and where applicable AML_EXIT event per Party and risk_case_id. It is strongly recommended to also include AML_SUSPICIOUS_ACTIVITY_START and AML_SUSPICIOUS_ACTIVITY_END events for best model performance. One of: [AML_SUSPICIOUS_ACTIVITY_START:AML_SUSPICIOUS_ACTIVITY_END:AML_PROCESS_START:AML_PROCESS_END:AML_ALERT_GOOGLE:AML_ALERT_LEGACY:AML_ALERT_ADHOC:AML_ALERT_EXPLORATORY:AML_ALERT_EXTERNAL:AML_SAR:AML_EXIT].",
+            "type": "STRING",
+            "example": "AML_SUSPICIOUS_ACTIVITY_START",
+            "column_path": "RiskCaseEvent.type",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 565,
+              "value_count": 565,
+              "null_count": 0,
+              "distinct_count": 11,
+              "unique_values": [
+                "AML_ALERT_ADHOC",
+                "AML_ALERT_EXPLORATORY",
+                "AML_ALERT_EXTERNAL",
+                "AML_ALERT_GOOGLE",
+                "AML_ALERT_LEGACY",
+                "AML_EXIT",
+                "AML_PROCESS_END",
+                "AML_PROCESS_START",
+                "AML_SAR",
+                "AML_SUSPICIOUS_ACTIVITY_END",
+                "AML_SUSPICIOUS_ACTIVITY_START"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "AML_ALERT_ADHOC",
+                  "count": 24
+                },
+                {
+                  "value": "AML_ALERT_EXPLORATORY",
+                  "count": 24
+                },
+                {
+                  "value": "AML_ALERT_EXTERNAL",
+                  "count": 24
+                },
+                {
+                  "value": "AML_ALERT_GOOGLE",
+                  "count": 24
+                },
+                {
+                  "value": "AML_ALERT_LEGACY",
+                  "count": 24
+                },
+                {
+                  "value": "AML_EXIT",
+                  "count": 20
+                },
+                {
+                  "value": "AML_PROCESS_END",
+                  "count": 80
+                },
+                {
+                  "value": "AML_PROCESS_START",
+                  "count": 120
+                },
+                {
+                  "value": "AML_SAR",
+                  "count": 45
+                },
+                {
+                  "value": "AML_SUSPICIOUS_ACTIVITY_END",
+                  "count": 90
+                },
+                {
+                  "value": "AML_SUSPICIOUS_ACTIVITY_START",
+                  "count": 90
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "AML_SUSPICIOUS_ACTIVITY_START",
+              "AML_SUSPICIOUS_ACTIVITY_END",
+              "AML_PROCESS_START",
+              "AML_PROCESS_END",
+              "AML_ALERT_GOOGLE",
+              "AML_ALERT_LEGACY",
+              "AML_ALERT_ADHOC",
+              "AML_ALERT_EXPLORATORY",
+              "AML_ALERT_EXTERNAL",
+              "AML_SAR",
+              "AML_EXIT"
+            ],
+            "enum_source": "Official input schema snapshot: field description",
+            "value_role": "category"
+          },
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: The ID in the Party table of the Party that is the subject of this investigation process.",
+            "type": "STRING",
+            "references": "Party.party_id",
+            "example": "HSBC_TW_P0004",
+            "column_path": "RiskCaseEvent.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 565,
+              "value_count": 565,
+              "null_count": 0,
+              "distinct_count": 120,
+              "sample_values": [
+                "HASE_HK_P0057",
+                "HASE_HK_P0078",
+                "HASE_HK_P0085"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "risk_typology_measurements",
+            "mode": "REPEATED",
+            "description": "RECOMMENDED: Information about the measured risks for this event. For SARs and exits, these are the risks identified in the investigation process and justifying the SAR or exit. Typologies specified for any risk case event resulting in an exit are used in measuring risk coverage.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "risk_typology_id",
+                "mode": "REQUIRED",
+                "description": "MANDATORY: Unique ID of the risk type being measured.",
+                "type": "STRING",
+                "column_path": "RiskCaseEvent.risk_typology_measurements.risk_typology_id",
+                "sql_type": "STRING",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 505,
+                  "value_count": 505,
+                  "null_count": 0,
+                  "distinct_count": 3,
+                  "unique_values": [
+                    "cash_burst",
+                    "cross_border_burst",
+                    "rapid_movement"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "cash_burst",
+                      "count": 169
+                    },
+                    {
+                      "value": "cross_border_burst",
+                      "count": 167
+                    },
+                    {
+                      "value": "rapid_movement",
+                      "count": 169
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "category"
+              }
+            ],
+            "example": [
+              {
+                "risk_typology_id": "cash_burst"
+              }
+            ],
+            "column_path": "RiskCaseEvent.risk_typology_measurements",
+            "sql_type": "ARRAY<STRUCT<risk_typology_id STRING>>",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 565,
+              "value_count": 505,
+              "null_count": 0,
+              "empty_array_count": 60,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          },
+          {
+            "name": "risk_case_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: The ID of the overall case to which this event belongs.",
+            "type": "STRING",
+            "example": "HSBC_TW_C000",
+            "column_path": "RiskCaseEvent.risk_case_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 565,
+              "value_count": 565,
+              "null_count": 0,
+              "distinct_count": 120,
+              "sample_values": [
+                "HASE_HK_C009",
+                "HASE_HK_C013",
+                "HASE_HK_C026"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          }
+        ],
+        "row_count": 565,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.RiskCaseEvent",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "PartySupplementaryData",
+        "classification": "RECOMMENDED",
+        "description": "Lets you add supplementary data for parties to enhance model performance with additional, relevant Party data.",
+        "primary_key": [
+          "party_supplementary_data_id",
+          "party_id",
+          "validity_start_time"
+        ],
+        "fields": [
+          {
+            "name": "party_supplementary_data_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Identifier for the supplementary data field. This ID should match between Datasets used for the same modeling process (for example, for tuning, training, predict and backtesting steps). IDs may use letters, numbers, and underscores, matching the regular expression [a-zA-Z0-9_]. The first character should be a letter or number, matching the regular expression [a-zA-Z0-9]. With engine versions released prior to 2024-03-01 these IDs must use values from 1 to 100.",
+            "type": "STRING",
+            "example": "declared_monthly_income_usd",
+            "column_path": "PartySupplementaryData.party_supplementary_data_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 2000,
+              "value_count": 2000,
+              "null_count": 0,
+              "distinct_count": 2,
+              "unique_values": [
+                "declared_monthly_income_usd",
+                "expected_monthly_transactions"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "declared_monthly_income_usd",
+                  "count": 1000
+                },
+                {
+                  "value": "expected_monthly_transactions",
+                  "count": 1000
+                }
+              ]
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "category"
+          },
+          {
+            "name": "validity_start_time",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Timestamp when this record became valid.",
+            "type": "TIMESTAMP",
+            "example": "2026-01-01T00:00:00Z",
+            "column_path": "PartySupplementaryData.validity_start_time",
+            "sql_type": "TIMESTAMP",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 2000,
+              "value_count": 2000,
+              "null_count": 0,
+              "distinct_count": 98,
+              "sample_values": [
+                "2026-01-01T00:00:00Z",
+                "2026-01-03T00:00:00Z",
+                "2026-01-04T00:00:00Z"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+              "min": "2026-01-01T00:00:00Z",
+              "max": "2026-06-29T00:00:00Z"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "is_entity_deleted",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: If set to TRUE, indicates this supplementary data field no longer has a value for this Party.",
+            "type": "BOOL",
+            "example": false,
+            "column_path": "PartySupplementaryData.is_entity_deleted",
+            "sql_type": "BOOL",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 2000,
+              "value_count": 2000,
+              "null_count": 0,
+              "distinct_count": 1,
+              "unique_values": [
+                false
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": false,
+                  "count": 2000
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              false,
+              true
+            ],
+            "enum_source": "Boolean data type",
+            "value_role": "category"
+          },
+          {
+            "name": "source_system",
+            "mode": "NULLABLE",
+            "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality.",
+            "type": "STRING",
+            "example": "HASE_HK_CORE",
+            "column_path": "PartySupplementaryData.source_system",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 2000,
+              "value_count": 2000,
+              "null_count": 0,
+              "distinct_count": 7,
+              "unique_values": [
+                "HASE_HK_CORE",
+                "HSBC_FR_CORE",
+                "HSBC_GB_CORE",
+                "HSBC_IE_CORE",
+                "HSBC_IN_CORE",
+                "HSBC_PL_CORE",
+                "HSBC_TW_CORE"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "HASE_HK_CORE",
+                  "count": 286
+                },
+                {
+                  "value": "HSBC_FR_CORE",
+                  "count": 286
+                },
+                {
+                  "value": "HSBC_GB_CORE",
+                  "count": 286
+                },
+                {
+                  "value": "HSBC_IE_CORE",
+                  "count": 284
+                },
+                {
+                  "value": "HSBC_IN_CORE",
+                  "count": 286
+                },
+                {
+                  "value": "HSBC_PL_CORE",
+                  "count": 286
+                },
+                {
+                  "value": "HSBC_TW_CORE",
+                  "count": 286
+                }
+              ]
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: ID of the Party to which this value of this supplementary data field refers.",
+            "type": "STRING",
+            "references": "Party.party_id",
+            "example": "HASE_HK_P0001",
+            "column_path": "PartySupplementaryData.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 2000,
+              "value_count": 2000,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_P0001",
+                "HASE_HK_P0008",
+                "HASE_HK_P0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "supplementary_data_payload",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Payload of the supplementary data; only supports float64 values.",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "value",
+                "mode": "REQUIRED",
+                "description": "MANDATORY: The value of this supplementary data field. Type: float64.",
+                "type": "FLOAT64",
+                "column_path": "PartySupplementaryData.supplementary_data_payload.value",
+                "sql_type": "FLOAT64",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 2000,
+                  "value_count": 2000,
+                  "null_count": 0,
+                  "distinct_count": 950,
+                  "sample_values": [
+                    1538.0,
+                    1539.0,
+                    1542.0
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+                  "min": 40.0,
+                  "max": 8995.0
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              }
+            ],
+            "example": {
+              "value": 2016.0
+            },
+            "column_path": "PartySupplementaryData.supplementary_data_payload",
+            "sql_type": "STRUCT<value FLOAT64>",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 2000,
+              "value_count": 2000,
+              "null_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          }
+        ],
+        "row_count": 2000,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.PartySupplementaryData",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "RetailPartiesRegistration",
+        "classification": "REGISTRATION",
+        "description": "Used for importing/registering retail customers for AML AI processing (see register-parties guide).",
+        "fields": [
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "Unique customer identifier",
+            "type": "STRING",
+            "references": "Party.party_id",
+            "example": "HASE_HK_P0001",
+            "column_path": "RetailPartiesRegistration.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_P0001",
+                "HASE_HK_P0008",
+                "HASE_HK_P0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "party_size",
+            "mode": "NULLABLE",
+            "description": "Not applicable for retail parties",
+            "type": "STRING",
+            "example": null,
+            "column_path": "RetailPartiesRegistration.party_size",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 1000,
+              "distinct_count": 0,
+              "unique_values": [],
+              "unique_values_complete": true,
+              "value_counts": []
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          }
+        ],
+        "row_count": 1000,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.RetailPartiesRegistration",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "CommercialPartiesRegistration",
+        "classification": "REGISTRATION",
+        "description": "Used for importing/registering commercial customers for AML AI processing (see register-parties guide).",
+        "fields": [
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "Unique customer identifier",
+            "type": "STRING",
+            "references": "Party.party_id",
+            "column_path": "CommercialPartiesRegistration.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 0,
+              "value_count": 0,
+              "null_count": 0,
+              "distinct_count": 0,
+              "sample_values": [],
+              "unique_values_complete": true,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "party_size",
+            "mode": "REQUIRED",
+            "description": "SMALL or LARGE, based on monthly transaction volume",
+            "type": "STRING",
+            "column_path": "CommercialPartiesRegistration.party_size",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 0,
+              "value_count": 0,
+              "null_count": 0,
+              "distinct_count": 0,
+              "unique_values": [],
+              "unique_values_complete": true,
+              "value_counts": [],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "SMALL",
+              "LARGE"
+            ],
+            "enum_source": "Supplied registration schema; null for retail parties where nullable",
+            "value_role": "category"
+          }
+        ],
+        "row_count": 0,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.CommercialPartiesRegistration",
+        "data_status": "intentionally_empty_retail_only",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      }
+    ],
+    "relationships": [
+      {
+        "from": "AccountPartyLink.party_id",
+        "to": "Party.party_id"
+      },
+      {
+        "from": "Transaction.account_id",
+        "to": "AccountPartyLink.account_id"
+      },
+      {
+        "from": "Transaction.counterparty_account.account_id",
+        "to": "AccountPartyLink.account_id",
+        "note": "optional; may reference an external institution"
+      },
+      {
+        "from": "RiskCaseEvent.party_id",
+        "to": "Party.party_id"
+      },
+      {
+        "from": "InteractionEvent.party_id",
+        "to": "Party.party_id"
+      },
+      {
+        "from": "InteractionEvent.account_id",
+        "to": "AccountPartyLink.account_id",
+        "note": "optional"
+      },
+      {
+        "from": "PartySupplementaryData.party_id",
+        "to": "Party.party_id"
+      },
+      {
+        "from": "RetailPartiesRegistration.party_id",
+        "to": "Party.party_id"
+      },
+      {
+        "from": "CommercialPartiesRegistration.party_id",
+        "to": "Party.party_id"
+      }
+    ]
+  },
+  "output_data_model": {
+    "description": "Tables produced by AML AI as prediction/explainability/metadata output, written to BigQuery destinations configured by the customer.",
+    "tables": [
+      {
+        "name": "RiskScores",
+        "destination": "BigQuery table specified in outputs.predictionDestination",
+        "description": "Party-level suspicious activity risk score for a given risk period.",
+        "fields": [
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "Unique party ID string",
+            "type": "STRING",
+            "example": "HASE_HK_P0001",
+            "column_path": "RiskScores.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 7566,
+              "value_count": 7566,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_P0001",
+                "HASE_HK_P0008",
+                "HASE_HK_P0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "risk_period_end_time",
+            "mode": "REQUIRED",
+            "description": "The end of the target period, in the timezone of the dataset",
+            "type": "TIMESTAMP",
+            "example": "2026-02-01T00:00:00Z",
+            "column_path": "RiskScores.risk_period_end_time",
+            "sql_type": "TIMESTAMP",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 7566,
+              "value_count": 7566,
+              "null_count": 0,
+              "distinct_count": 8,
+              "unique_values": [
+                "2026-02-01T00:00:00Z",
+                "2026-03-01T00:00:00Z",
+                "2026-04-01T00:00:00Z",
+                "2026-05-01T00:00:00Z",
+                "2026-06-01T00:00:00Z",
+                "2026-07-01T00:00:00Z",
+                "2026-08-01T00:00:00Z",
+                "2026-09-01T00:00:00Z"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "2026-02-01T00:00:00Z",
+                  "count": 869
+                },
+                {
+                  "value": "2026-03-01T00:00:00Z",
+                  "count": 891
+                },
+                {
+                  "value": "2026-04-01T00:00:00Z",
+                  "count": 922
+                },
+                {
+                  "value": "2026-05-01T00:00:00Z",
+                  "count": 950
+                },
+                {
+                  "value": "2026-06-01T00:00:00Z",
+                  "count": 974
+                },
+                {
+                  "value": "2026-07-01T00:00:00Z",
+                  "count": 1000
+                },
+                {
+                  "value": "2026-08-01T00:00:00Z",
+                  "count": 1000
+                },
+                {
+                  "value": "2026-09-01T00:00:00Z",
+                  "count": 960
+                }
+              ],
+              "min": "2026-02-01T00:00:00Z",
+              "max": "2026-09-01T00:00:00Z"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "risk_score",
+            "mode": "REQUIRED",
+            "description": "Prediction value between 0 and 1; higher score means higher risk",
+            "type": "FLOAT64",
+            "example": 0.188097,
+            "column_path": "RiskScores.risk_score",
+            "sql_type": "FLOAT64",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 7566,
+              "value_count": 7566,
+              "null_count": 0,
+              "distinct_count": 7507,
+              "sample_values": [
+                0.000632,
+                0.000673,
+                0.000848
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+              "min": 0.000632,
+              "max": 0.979836
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          }
+        ],
+        "row_count": 7566,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.RiskScores",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "Explainability",
+        "destination": "BigQuery table specified in outputs.explainabilityDestination",
+        "description": "Feature-family attributions explaining each party's risk score.",
+        "fields": [
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "Unique party identifier",
+            "type": "STRING",
+            "example": "HASE_HK_P0001",
+            "column_path": "Explainability.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 7566,
+              "value_count": 7566,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_P0001",
+                "HASE_HK_P0008",
+                "HASE_HK_P0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "risk_period_end_time",
+            "mode": "REQUIRED",
+            "description": "Period end timestamp in dataset timezone",
+            "type": "TIMESTAMP",
+            "example": "2026-02-01T00:00:00Z",
+            "column_path": "Explainability.risk_period_end_time",
+            "sql_type": "TIMESTAMP",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 7566,
+              "value_count": 7566,
+              "null_count": 0,
+              "distinct_count": 8,
+              "unique_values": [
+                "2026-02-01T00:00:00Z",
+                "2026-03-01T00:00:00Z",
+                "2026-04-01T00:00:00Z",
+                "2026-05-01T00:00:00Z",
+                "2026-06-01T00:00:00Z",
+                "2026-07-01T00:00:00Z",
+                "2026-08-01T00:00:00Z",
+                "2026-09-01T00:00:00Z"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "2026-02-01T00:00:00Z",
+                  "count": 869
+                },
+                {
+                  "value": "2026-03-01T00:00:00Z",
+                  "count": 891
+                },
+                {
+                  "value": "2026-04-01T00:00:00Z",
+                  "count": 922
+                },
+                {
+                  "value": "2026-05-01T00:00:00Z",
+                  "count": 950
+                },
+                {
+                  "value": "2026-06-01T00:00:00Z",
+                  "count": 974
+                },
+                {
+                  "value": "2026-07-01T00:00:00Z",
+                  "count": 1000
+                },
+                {
+                  "value": "2026-08-01T00:00:00Z",
+                  "count": 1000
+                },
+                {
+                  "value": "2026-09-01T00:00:00Z",
+                  "count": 960
+                }
+              ],
+              "min": "2026-02-01T00:00:00Z",
+              "max": "2026-09-01T00:00:00Z"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "attributions",
+            "mode": "REPEATED",
+            "description": "Record of feature families and their attribution value",
+            "type": "RECORD",
+            "fields": [
+              {
+                "name": "feature",
+                "mode": "REQUIRED",
+                "description": "Name of feature family",
+                "type": "STRING",
+                "column_path": "Explainability.attributions.feature",
+                "sql_type": "STRING",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 22698,
+                  "value_count": 22698,
+                  "null_count": 0,
+                  "distinct_count": 3,
+                  "unique_values": [
+                    "demo_cash_activity",
+                    "demo_transaction_velocity",
+                    "unusual_wire_credit_activity"
+                  ],
+                  "unique_values_complete": true,
+                  "value_counts": [
+                    {
+                      "value": "demo_cash_activity",
+                      "count": 7566
+                    },
+                    {
+                      "value": "demo_transaction_velocity",
+                      "count": 7566
+                    },
+                    {
+                      "value": "unusual_wire_credit_activity",
+                      "count": 7566
+                    }
+                  ]
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              },
+              {
+                "name": "attribution",
+                "mode": "REQUIRED",
+                "description": "Feature family's attribution score",
+                "type": "FLOAT64",
+                "column_path": "Explainability.attributions.attribution",
+                "sql_type": "FLOAT64",
+                "nullable": false,
+                "observed_values": {
+                  "parent_record_count": 22698,
+                  "value_count": 22698,
+                  "null_count": 0,
+                  "distinct_count": 20947,
+                  "sample_values": [
+                    0.000126,
+                    0.000135,
+                    0.00017
+                  ],
+                  "unique_values_complete": false,
+                  "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable",
+                  "min": 0.000126,
+                  "max": 0.489918
+                },
+                "allowed_enum_values": null,
+                "enum_source": null,
+                "value_role": "attribute"
+              }
+            ],
+            "example": [
+              {
+                "feature": "unusual_wire_credit_activity",
+                "attribution": 0.094048
+              },
+              {
+                "feature": "demo_cash_activity",
+                "attribution": 0.056429
+              },
+              {
+                "feature": "demo_transaction_velocity",
+                "attribution": 0.037619
+              }
+            ],
+            "column_path": "Explainability.attributions",
+            "sql_type": "ARRAY<STRUCT<feature STRING, attribution FLOAT64>>",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 7566,
+              "value_count": 22698,
+              "null_count": 0,
+              "empty_array_count": 0,
+              "enumeration": "See nested fields; complete records are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null
+          }
+        ],
+        "row_count": 7566,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.Explainability",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "RegisteredPartiesExport",
+        "destination": "BigQuery table specified in the dataset field of the export request",
+        "description": "Export of parties registered for AML AI processing, with tiering/lifecycle metadata.",
+        "fields": [
+          {
+            "name": "party_id",
+            "mode": "REQUIRED",
+            "description": "Unique identifier of the party in the instance's datasets",
+            "type": "STRING",
+            "example": "HASE_HK_P0001",
+            "column_path": "RegisteredPartiesExport.party_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 1000,
+              "sample_values": [
+                "HASE_HK_P0001",
+                "HASE_HK_P0008",
+                "HASE_HK_P0015"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "party_size",
+            "mode": "NULLABLE",
+            "description": "Tier designation (NULL for retail; SMALL/LARGE for commercial)",
+            "type": "STRING",
+            "example": null,
+            "column_path": "RegisteredPartiesExport.party_size",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 1000,
+              "distinct_count": 0,
+              "unique_values": [],
+              "unique_values_complete": true,
+              "value_counts": [],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "SMALL",
+              "LARGE"
+            ],
+            "enum_source": "Supplied registration schema; null for retail parties where nullable",
+            "value_role": "category"
+          },
+          {
+            "name": "earliest_remove_time",
+            "mode": "NULLABLE",
+            "description": "The earliest time at which the party can be removed",
+            "type": "STRING",
+            "example": "2027-01-01T00:00:00Z",
+            "column_path": "RegisteredPartiesExport.earliest_remove_time",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 98,
+              "sample_values": [
+                "2027-01-01T00:00:00Z",
+                "2027-01-03T00:00:00Z",
+                "2027-01-04T00:00:00Z"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "party_with_prediction_intent",
+            "mode": "NULLABLE",
+            "description": "Indicator of prediction history",
+            "type": "STRING",
+            "example": "true",
+            "column_path": "RegisteredPartiesExport.party_with_prediction_intent",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 1,
+              "unique_values": [
+                "true"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "true",
+                  "count": 1000
+                }
+              ]
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          },
+          {
+            "name": "registration_or_uptier_time",
+            "mode": "NULLABLE",
+            "description": "The time at which the party was registered or uptiered",
+            "type": "STRING",
+            "example": "2026-01-01T00:00:00Z",
+            "column_path": "RegisteredPartiesExport.registration_or_uptier_time",
+            "sql_type": "STRING",
+            "nullable": true,
+            "observed_values": {
+              "parent_record_count": 1000,
+              "value_count": 1000,
+              "null_count": 0,
+              "distinct_count": 98,
+              "sample_values": [
+                "2026-01-01T00:00:00Z",
+                "2026-01-03T00:00:00Z",
+                "2026-01-04T00:00:00Z"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          }
+        ],
+        "row_count": 1000,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.RegisteredPartiesExport",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      },
+      {
+        "name": "ExportedMetadata",
+        "destination": "BigQuery table associated with engine configs, models, backtest results, or prediction results",
+        "description": "Generic metadata/metrics export table used across multiple AML AI resource types.",
+        "fields": [
+          {
+            "name": "resource_type",
+            "mode": "REQUIRED",
+            "description": "Type of AML AI resource, such as an engine config or prediction results",
+            "type": "STRING",
+            "example": "PredictionResults",
+            "column_path": "ExportedMetadata.resource_type",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 16,
+              "value_count": 16,
+              "null_count": 0,
+              "distinct_count": 2,
+              "unique_values": [
+                "BacktestResults",
+                "PredictionResults"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "BacktestResults",
+                  "count": 8
+                },
+                {
+                  "value": "PredictionResults",
+                  "count": 8
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "EngineConfig",
+              "Model",
+              "BacktestResults",
+              "PredictionResults"
+            ],
+            "enum_source": "Resource types covered by supplied schema metadata_metrics_by_resource_type",
+            "value_role": "category"
+          },
+          {
+            "name": "resource_id",
+            "mode": "REQUIRED",
+            "description": "Name of the resource",
+            "type": "STRING",
+            "example": "SIMULATED_PredictionResults_202601",
+            "column_path": "ExportedMetadata.resource_id",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 16,
+              "value_count": 16,
+              "null_count": 0,
+              "distinct_count": 16,
+              "sample_values": [
+                "SIMULATED_BacktestResults_202601",
+                "SIMULATED_BacktestResults_202602",
+                "SIMULATED_BacktestResults_202603"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "Identifier values are not enumerated"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "identifier"
+          },
+          {
+            "name": "name",
+            "mode": "REQUIRED",
+            "description": "Name of the metadata entry, such as a metric",
+            "type": "STRING",
+            "example": "Missingness",
+            "column_path": "ExportedMetadata.name",
+            "sql_type": "STRING",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 16,
+              "value_count": 16,
+              "null_count": 0,
+              "distinct_count": 2,
+              "unique_values": [
+                "Missingness",
+                "ObservedRecallValues"
+              ],
+              "unique_values_complete": true,
+              "value_counts": [
+                {
+                  "value": "Missingness",
+                  "count": 8
+                },
+                {
+                  "value": "ObservedRecallValues",
+                  "count": 8
+                }
+              ],
+              "values_outside_declared_enum": []
+            },
+            "allowed_enum_values": [
+              "ExpectedRecallPostTuning",
+              "ExpectedRecallPreTuning",
+              "Importance",
+              "Missingness",
+              "ObservedRecallValues",
+              "ObservedRecallValuesPerTypology",
+              "Skew"
+            ],
+            "enum_source": "Metric names covered by supplied schema; valid names depend on resource_type",
+            "value_role": "category"
+          },
+          {
+            "name": "value",
+            "mode": "REQUIRED",
+            "description": "Value of the metadata entry",
+            "type": "JSON",
+            "example": "{\"featureFamilies\": [{\"featureFamily\": \"unusual_wire_credit_activity\", \"missingnessValue\": 0.0}]}",
+            "column_path": "ExportedMetadata.value",
+            "sql_type": "JSON",
+            "nullable": false,
+            "observed_values": {
+              "parent_record_count": 16,
+              "value_count": 16,
+              "null_count": 0,
+              "distinct_count": 2,
+              "sample_values": [
+                "{\"featureFamilies\": [{\"featureFamily\": \"unusual_wire_credit_activity\", \"missingnessValue\": 0.0}]}",
+                "{\"recallValues\": [{\"partyInvestigationsPerPeriod\": 100, \"partiesCount\": 100, \"identifiedPartiesCount\": 80, \"recallValue\": 0.8, \"scoreThreshold\": 0.8}]}"
+              ],
+              "unique_values_complete": false,
+              "enumeration_omitted_reason": "JSON payload or more than 50 distinct values; summarized to keep documentation readable"
+            },
+            "allowed_enum_values": null,
+            "enum_source": null,
+            "value_role": "attribute"
+          }
+        ],
+        "metadata_metrics_by_resource_type": {
+          "EngineConfig": [
+            "ExpectedRecallPreTuning",
+            "ExpectedRecallPostTuning",
+            "Missingness"
+          ],
+          "Model": [
+            "Missingness",
+            "Importance"
+          ],
+          "BacktestResults": [
+            "ObservedRecallValues",
+            "ObservedRecallValuesPerTypology",
+            "Missingness",
+            "Skew"
+          ],
+          "PredictionResults": [
+            "Missingness",
+            "Skew"
+          ]
+        },
+        "row_count": 16,
+        "bigquery_table": "gen-lang-client-0810987953.aml_demo.ExportedMetadata",
+        "data_status": "synthetic",
+        "documentation_notes": "Nested children use BigQuery fields notation. Schema types and modes match deployment; examples are synthetic."
+      }
+    ]
+  },
+  "input_to_output_linkages": [
+    {
+      "from": "input.Party.party_id",
+      "to": "output.RiskScores.party_id",
+      "note": "Risk score is produced per party in the input Party table"
+    },
+    {
+      "from": "input.Party.party_id",
+      "to": "output.Explainability.party_id",
+      "note": "Explainability attributions are produced per party"
+    },
+    {
+      "from": "input.RetailPartiesRegistration.party_id | input.CommercialPartiesRegistration.party_id",
+      "to": "output.RegisteredPartiesExport.party_id",
+      "note": "Registered parties export mirrors registration input, plus lifecycle metadata"
+    },
+    {
+      "from": "input.RiskCaseEvent.risk_typology_measurements",
+      "to": "output.ExportedMetadata (BacktestResults.ObservedRecallValuesPerTypology)",
+      "note": "Backtest recall metrics are computed per risk typology defined via RiskCaseEvent"
+    },
+    {
+      "from": "input tables (Party, AccountPartyLink, Transaction, InteractionEvent, RiskCaseEvent, PartySupplementaryData)",
+      "to": "output.ExportedMetadata (Model.Missingness, Model.Importance; EngineConfig.Missingness)",
+      "note": "Missingness/importance metrics are computed over the feature families derived from input tables"
+    }
+  ],
+  "dataset": {
+    "project": "gen-lang-client-0810987953",
+    "dataset": "aml_demo",
+    "location": "asia-south1",
+    "seed": 20260919,
+    "synthetic": true,
+    "start": "2026-01-01T00:00:00Z",
+    "end_exclusive": "2026-09-01T00:00:00Z",
+    "reporting_currency": "USD",
+    "countries": {
+      "HK": 143,
+      "GB": 143,
+      "IN": 143,
+      "TW": 143,
+      "FR": 143,
+      "PL": 143,
+      "IE": 142
+    },
+    "schema_decisions": [
+      "Party.civil_status_code omitted: optional field is STRUCT in supplied file but STRING in official schema; pending confirmation.",
+      "AccountPartyLink.role: retaining supplied REQUIRED mode (official NULLABLE); generated values satisfy both.",
+      "Transaction.normalized_booked_amount: retaining supplied REQUIRED mode (official NULLABLE); generated values satisfy both."
+    ],
+    "actual_aml_ai_ready": false,
+    "limitations": [
+      "Eight months is insufficient for full AML AI training/tuning; verify engine-specific duration, location, labels, registration and service access before use.",
+      "Outputs and metadata are simulated, not actual AML AI results or measured model performance.",
+      "CommercialPartiesRegistration is intentionally empty for retail-only scope.",
+      "Local-currency details use fictional FX rates and live in companion files, not the official input tables.",
+      "Optional civil_status_code omitted pending schema conflict decision."
+    ],
+    "identifier_format": "<ENTITY>_<COUNTRY>_<TYPE><NUMBER>",
+    "entity_country_mapping": {
+      "HK": "HASE_HK",
+      "GB": "HSBC_GB",
+      "IN": "HSBC_IN",
+      "TW": "HSBC_TW",
+      "FR": "HSBC_FR",
+      "PL": "HSBC_PL",
+      "IE": "HSBC_IE"
+    },
+    "omitted_columns": {
+      "Party.civil_status_code": "Not deployed: supplied STRUCT conflicts with official STRING; optional field omitted."
+    },
+    "naming_notes": [
+      "UK is encoded as GB.",
+      "Prefixes reflect the owning customer country, not the counterparty country.",
+      "External counterparties are not represented as HSBC or HASE accounts.",
+      "Dataset-wide SIMULATED resource IDs are retained.",
+      "All entities are fictional; codes do not imply real bank records."
+    ]
+  },
+  "value_documentation": {
+    "source": "Local v2 data files verified against BigQuery at identifier migration completion; not a new live cloud scan",
+    "field_count_including_nested": 128,
+    "allowed_enum_values": "Declared domain values, not inferred from a sample; null means no finite enum declared in available schema sources",
+    "observed_values": "Values actually present in this synthetic dataset, not a restriction on future values",
+    "nulls": "null_count is separate from unique_values and distinct_count; enum lists contain only non-null domain values",
+    "nested_counts": "Repeated children count per array element. Children of null structs and empty arrays have no occurrences; parent counts are recorded separately",
+    "enumeration_policy": "All non-identifier scalar fields with at most 50 distinct values list all values and frequencies. High-cardinality attributes, identifiers and JSON payloads have distinct counts and up to 3 samples; numeric/date/timestamp fields also have ranges",
+    "semantic_identifier_categories": [
+      "party_supplementary_data_id",
+      "risk_typology_id"
+    ],
+    "json_payloads": "JSON has no fixed nested BigQuery schema; examples appear on the value field and metric names are mapped by resource type"
+  }
+}

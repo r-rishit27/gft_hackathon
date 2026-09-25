@@ -1,10 +1,42 @@
 # AML KPI Copilot
 
 A text-to-SQL pipeline for AML (anti-money-laundering) KPI reporting: ask a question in plain English,
-get back a validated SQL query grounded in the AML data model's real schema — no execution, no fabricated
-numbers, just a query you can review and run yourself.
+generate SQL grounded in the deployed schema, validate it independently, and query the synthetic BigQuery
+dataset through a separate read-only analytics service. The original SQL-only endpoint remains available.
+
+## Local live-data integration
+
+Use [the local integration guide](analytics_service/README.md) for Ollama setup, Google login,
+approved read-only access provisioning and the free-form results dashboard. The requested model is
+`mannix/defog-llama3-sqlcoder-8b`. No public cloud deployment or mock-data fallback is enabled.
 
 See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results and known limitations.
+
+## BigQuery demo dataset
+
+The synthetic dataset is deployed at `gen-lang-client-0810987953.aml_demo`
+in `asia-south1`: 1,000 retail customers, 50,000 transactions and 12 tables.
+Hong Kong identifiers use `HASE_HK`; the other countries use `HSBC_<COUNTRY>`.
+
+- [Deployed dataset schema, enums and observed values](dataset/aml_data_model_schema.json)
+- [Dataset documentation and reproducible loading instructions](dataset/README.md)
+- [Complete data package, including the migration baseline](dataset/releases/aml_dataset_v2_20260919.zip)
+- [Cloud migration verification](dataset/reports/migration_cloud.json)
+
+The enriched schema under `dataset/` documents the actual BigQuery data and is the metadata source
+for local execution mode. The original `schema/` document remains available to the legacy model path.
+All data and AML outputs in this package are simulated; querying cloud-hosted rows does not make them
+real customer data or validated AML predictions.
+
+To restore ignored data files from a fresh checkout, run from the repository root:
+
+```sh
+unzip -n dataset/releases/aml_dataset_v2_20260919.zip -d .
+python3 -m unittest discover -s dataset -p 'test_*.py'
+python3 dataset/check_naming.py
+```
+
+The archive includes source copies; `-n` preserves the current checked-in files.
 
 ---
 

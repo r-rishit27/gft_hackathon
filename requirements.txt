@@ -1,0 +1,5 @@
+-r analytics_service/requirements.txt
+python-dotenv==1.2.3
+falkordb==1.7.1
+sentence-transformers==5.7.0
+requests==2.34.2

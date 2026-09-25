@@ -1,0 +1,288 @@
+[
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Unique ID for your customers. Use a pseudo-ID or an internal customer ID instead of an externally facing customer ID.",
+    "type": "STRING"
+  },
+  {
+    "name": "validity_start_time",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Timestamp of when the information in this row reflected the state of the entity and was known to the bank.",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "is_entity_deleted",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: If set to TRUE, indicates the party as deleted from your system of reference.",
+    "type": "BOOL"
+  },
+  {
+    "name": "source_system",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality.",
+    "type": "STRING"
+  },
+  {
+    "name": "type",
+    "mode": "REQUIRED",
+    "description": "MANDATORY: Type of this party, to differentiate between a natural person or a legal entity. One of: [COMPANY:CONSUMER].",
+    "type": "STRING"
+  },
+  {
+    "name": "name",
+    "mode": "NULLABLE",
+    "description": "EXPERIMENTAL: Name of this party.",
+    "type": "STRING"
+  },
+  {
+    "name": "addresses",
+    "mode": "REPEATED",
+    "description": "EXPERIMENTAL: Addresses of this party, if any.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "address_line",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: First line of address in case not captured by street and building number.",
+        "type": "STRING"
+      },
+      {
+        "name": "street",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Street of the address.",
+        "type": "STRING"
+      },
+      {
+        "name": "building_number",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Building number of the address.",
+        "type": "STRING"
+      },
+      {
+        "name": "post_office_box",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: PO Box identifier in case the address is a PO Box.",
+        "type": "STRING"
+      },
+      {
+        "name": "post_code",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Postcode. Include postcode for each Party where this is known to the bank.",
+        "type": "STRING"
+      },
+      {
+        "name": "town",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Town of the address.",
+        "type": "STRING"
+      },
+      {
+        "name": "subregion",
+        "mode": "NULLABLE",
+        "description": "MANDATORY: Region within the country. For AML do not use NULL for this field.",
+        "type": "STRING"
+      },
+      {
+        "name": "region_code",
+        "mode": "NULLABLE",
+        "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format. Do not use NULL for this field.",
+        "type": "STRING"
+      }
+    ]
+  },
+  {
+    "name": "birth_date",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Date of birth for the Party for natural persons, for example, where Party.type = CONSUMER. Where Party.type = COMPANY, use NULL. Typically also used for fairness evaluation.",
+    "type": "DATE"
+  },
+  {
+    "name": "establishment_date",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Party's date of establishment with Party.type = COMPANY. Where Party.type = CONSUMER, use NULL.",
+    "type": "DATE"
+  },
+  {
+    "name": "occupation",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Most recent occupation of the Party, if known. Only relevant with Party.type = CONSUMER. Where Party.type = COMPANY, use NULL. If not known, use the empty string. Note that this field is not intended to capture employment level. For example, for a carpenter who is currently unemployed, this field should read \"Carpenter\".",
+    "type": "STRING"
+  },
+  {
+    "name": "gender",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Gender string for individuals. Typically used for fairness evaluation.",
+    "type": "STRING"
+  },
+  {
+    "name": "nationalities",
+    "mode": "REPEATED",
+    "description": "RECOMMENDED: One or more nationalities for natural persons, with an empty list in exceptional cases when your do not have information on the tax residency of the party. Empty for companies. Typically also used for fairness evaluation.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "region_code",
+        "mode": "REQUIRED",
+        "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format.",
+        "type": "STRING"
+      }
+    ]
+  },
+  {
+    "name": "residencies",
+    "mode": "REPEATED",
+    "description": "RECOMMENDED: One or more of the Party's tax residencies (for natural persons), with an empty list in exceptional cases. Empty list for companies.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "region_code",
+        "mode": "REQUIRED",
+        "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format.",
+        "type": "STRING"
+      }
+    ]
+  },
+  {
+    "name": "exit_date",
+    "mode": "NULLABLE",
+    "description": "MANDATORY: The date when the party stopped being a customer. Use NULL if the Party has not stopped being a customer.",
+    "type": "DATE"
+  },
+  {
+    "name": "join_date",
+    "mode": "NULLABLE",
+    "description": "MANDATORY: Date when the Party first became your customer. Use NULL if the Party has been entered into your systems but has not yet opened an account.",
+    "type": "DATE"
+  },
+  {
+    "name": "assets_value_range",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Approximate value of assets held by the Party. Where possible, this estimate should include assets held by other financial institutions. Include at least the start or end amount.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "start_amount",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: The lower bound of the money range (inclusive) or NULL if there is no bound. If provided, it should be positive.",
+        "type": "RECORD",
+        "fields": [
+          {
+            "name": "currency_code",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: The three-letter currency code defined in ISO 4217.",
+            "type": "STRING"
+          },
+          {
+            "name": "units",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: The whole units of the amount. For example, if currency_code is USD, then 1 unit is one US dollar.",
+            "type": "INT64"
+          },
+          {
+            "name": "nanos",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Number of nano (10^-9) units of the amount. The value must be between 0 and 999,999,999, inclusive. Nanos must be positive or zero.",
+            "type": "INT64"
+          }
+        ]
+      },
+      {
+        "name": "end_amount",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: The upper bound of the money range (exclusive) or NULL if there is no bound.  If provided, it should be positive. The range represents a single value when start_amount is equal to end_amount.",
+        "type": "RECORD",
+        "fields": [
+          {
+            "name": "currency_code",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: The three-letter currency code defined in ISO 4217.",
+            "type": "STRING"
+          },
+          {
+            "name": "units",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: The whole units of the amount. For example, if currency_code is USD, then 1 unit is one US dollar.",
+            "type": "INT64"
+          },
+          {
+            "name": "nanos",
+            "mode": "REQUIRED",
+            "description": "MANDATORY: Number of nano (10^-9) units of the amount. The value must be between 0 and 999,999,999, inclusive. Nanos must be positive or zero.",
+            "type": "INT64"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "phone_numbers",
+    "mode": "REPEATED",
+    "description": "EXPERIMENTAL: Zero or more phone numbers of this Party.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "type",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Type of this phone number. Supported Values: PERSONAL, CORPORATE One of: [PERSONAL:CORPORATE].",
+        "type": "STRING"
+      },
+      {
+        "name": "phone",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Phone number. Either this field or obfuscated_phone should be filled in.",
+        "type": "STRING"
+      },
+      {
+        "name": "obfuscated_phone",
+        "mode": "NULLABLE",
+        "description": "MANDATORY: Phone number, obfuscated. Do not use NULL for this field.",
+        "type": "STRING"
+      },
+      {
+        "name": "region_code",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: Region code in two-letter Unicode CLDR code format, if known.",
+        "type": "STRING"
+      }
+    ]
+  },
+  {
+    "name": "email_addresses",
+    "mode": "REPEATED",
+    "description": "EXPERIMENTAL: Zero or more email addresses of this Party.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "type",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Type of this email address. Supported values: PERSONAL, CORPORATE One of: [PERSONAL:CORPORATE].",
+        "type": "STRING"
+      },
+      {
+        "name": "email",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Email address. Either this field or obfuscated_email should be filled in.",
+        "type": "STRING"
+      },
+      {
+        "name": "obfuscated_email",
+        "mode": "NULLABLE",
+        "description": "RECOMMENDED: Email address, obfuscated.",
+        "type": "STRING"
+      },
+      {
+        "name": "region_code",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: Region code in two-letter Unicode CLDR code format, if known.",
+        "type": "STRING"
+      }
+    ]
+  },
+  {
+    "name": "education_level_code",
+    "mode": "NULLABLE",
+    "description": "RECOMMENDED: Most recent educational level of the Party, defined in International Standard Classification of Education (ISCED-11). If not known, use UNKNOWN. Based on standard ISCED-Attainment (ISCED-A) coding. One of: [LESS_THAN_PRIMARY_EDUCATION:PRIMARY_EDUCATION:LOWER_SECONDARY_EDUCATION:UPPER_SECONDARY_EDUCATION:POST_SECONDARY_NON_TERTIARY_EDUCATION:SHORT_CYCLE_TERTIARY_EDUCATION:BACHELORS_OR_EQUIVALENT:MASTERS_OR_EQUIVALENT:DOCTORAL_OR_EQUIVALENT:NOT_ELSEWHERE_CLASSIFIED:UNKNOWN].",
+    "type": "STRING"
+  }
+]

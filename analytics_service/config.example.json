@@ -1,0 +1,35 @@
+{
+  "model_url": "http://127.0.0.1:8000/generate-sql",
+  "maximum_bytes_billed": 100000000,
+  "max_concurrent_queries": 2,
+  "requests_per_minute": 10,
+  "identities": [{
+    "subject": "hk-analyst",
+    "token_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "scope": "hk"
+  }],
+  "scopes": {
+    "hk": {
+      "entities": ["HASE_HK"],
+      "service_account": "aml-analytics-hk@gen-lang-client-0810987953.iam.gserviceaccount.com",
+      "resources": {
+        "Party": {
+          "view": "gen-lang-client-0810987953.aml_analytics_hk.Party",
+          "columns": ["party_id", "validity_start_time", "is_entity_deleted", "exit_date", "join_date"]
+        },
+        "Transaction": {
+          "view": "gen-lang-client-0810987953.aml_analytics_hk.Transaction",
+          "columns": ["book_time", "direction", "is_entity_deleted", "normalized_booked_amount"]
+        },
+        "RiskCaseEvent": {
+          "view": "gen-lang-client-0810987953.aml_analytics_hk.RiskCaseEvent",
+          "columns": ["risk_case_id", "type", "event_time"]
+        },
+        "RiskScores": {
+          "view": "gen-lang-client-0810987953.aml_analytics_hk.RiskScores",
+          "columns": ["party_id", "risk_period_end_time", "risk_score"]
+        }
+      }
+    }
+  }
+}

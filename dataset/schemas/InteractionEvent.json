@@ -1,0 +1,70 @@
+[
+  {
+    "name": "interaction_event_id",
+    "mode": "REQUIRED",
+    "description": "EXPERIMENTAL: Unique interaction event ID string.",
+    "type": "STRING"
+  },
+  {
+    "name": "party_id",
+    "mode": "REQUIRED",
+    "description": "EXPERIMENTAL: Interacting party ID.",
+    "type": "STRING"
+  },
+  {
+    "name": "account_id",
+    "mode": "NULLABLE",
+    "description": "EXPERIMENTAL: The ID of an account directly related to this event, if any.",
+    "type": "STRING"
+  },
+  {
+    "name": "type",
+    "mode": "REQUIRED",
+    "description": "EXPERIMENTAL: Type of the interaction event. Must be one of the enum values. Make sure to check the documentation on this field. One of: [LOGIN:PAYMENT_METHOD_ADDED:KYC_CHANGE:PASSWORD_CHANGE:OTHER].",
+    "type": "STRING"
+  },
+  {
+    "name": "event_time",
+    "mode": "REQUIRED",
+    "description": "EXPERIMENTAL: Time when the event happened.",
+    "type": "TIMESTAMP"
+  },
+  {
+    "name": "ip_address",
+    "mode": "NULLABLE",
+    "description": "EXPERIMENTAL: IP address of the device that the Party is using for this interaction.",
+    "type": "RECORD",
+    "fields": [
+      {
+        "name": "type",
+        "mode": "NULLABLE",
+        "description": "MANDATORY: IP address type. One of: [V4:V6].",
+        "type": "STRING"
+      },
+      {
+        "name": "ip",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: IP address.",
+        "type": "STRING"
+      },
+      {
+        "name": "obfuscated_ip",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: IP address, obfuscated.",
+        "type": "STRING"
+      },
+      {
+        "name": "region_code",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: Region code extracted from the IP address in two-letter Unicode CLDR code format, if known.",
+        "type": "STRING"
+      },
+      {
+        "name": "is_vpn",
+        "mode": "NULLABLE",
+        "description": "EXPERIMENTAL: Whether a VPN service was used.",
+        "type": "BOOL"
+      }
+    ]
+  }
+]

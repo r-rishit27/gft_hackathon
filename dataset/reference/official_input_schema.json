@@ -1,0 +1,692 @@
+{
+  "Party": [
+    {
+      "name": "party_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Unique ID for your customers. Use a pseudo-ID or an internal customer ID instead of an externally facing customer ID."
+    },
+    {
+      "name": "validity_start_time",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Timestamp of when the information in this row reflected the state of the entity and was known to the bank."
+    },
+    {
+      "name": "is_entity_deleted",
+      "type": "BOOL",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: If set to TRUE, indicates the party as deleted from your system of reference."
+    },
+    {
+      "name": "source_system",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality."
+    },
+    {
+      "name": "type",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Type of this party, to differentiate between a natural person or a legal entity. One of: [COMPANY:CONSUMER]."
+    },
+    {
+      "name": "name",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "EXPERIMENTAL: Name of this party."
+    },
+    {
+      "name": "addresses",
+      "type": "STRUCT",
+      "mode": "REPEATED",
+      "description": "EXPERIMENTAL: Addresses of this party, if any.",
+      "fields": [
+        {
+          "name": "address_line",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: First line of address in case not captured by street and building number."
+        },
+        {
+          "name": "street",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Street of the address."
+        },
+        {
+          "name": "building_number",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Building number of the address."
+        },
+        {
+          "name": "post_office_box",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: PO Box identifier in case the address is a PO Box."
+        },
+        {
+          "name": "post_code",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Postcode. Include postcode for each Party where this is known to the bank."
+        },
+        {
+          "name": "town",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Town of the address."
+        },
+        {
+          "name": "subregion",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "MANDATORY: Region within the country. For AML do not use NULL for this field."
+        },
+        {
+          "name": "region_code",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format. Do not use NULL for this field."
+        }
+      ]
+    },
+    {
+      "name": "birth_date",
+      "type": "DATE",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Date of birth for the Party for natural persons, for example, where Party.type = CONSUMER. Where Party.type = COMPANY, use NULL. Typically also used for fairness evaluation."
+    },
+    {
+      "name": "establishment_date",
+      "type": "DATE",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Party's date of establishment with Party.type = COMPANY. Where Party.type = CONSUMER, use NULL."
+    },
+    {
+      "name": "occupation",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Most recent occupation of the Party, if known. Only relevant with Party.type = CONSUMER. Where Party.type = COMPANY, use NULL. If not known, use the empty string. Note that this field is not intended to capture employment level. For example, for a carpenter who is currently unemployed, this field should read \"Carpenter\"."
+    },
+    {
+      "name": "gender",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Gender string for individuals. Typically used for fairness evaluation."
+    },
+    {
+      "name": "nationalities",
+      "type": "STRUCT",
+      "mode": "REPEATED",
+      "description": "RECOMMENDED: One or more nationalities for natural persons, with an empty list in exceptional cases when your do not have information on the tax residency of the party. Empty for companies. Typically also used for fairness evaluation.",
+      "fields": [
+        {
+          "name": "region_code",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format."
+        }
+      ]
+    },
+    {
+      "name": "residencies",
+      "type": "STRUCT",
+      "mode": "REPEATED",
+      "description": "RECOMMENDED: One or more of the Party's tax residencies (for natural persons), with an empty list in exceptional cases. Empty list for companies.",
+      "fields": [
+        {
+          "name": "region_code",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format."
+        }
+      ]
+    },
+    {
+      "name": "exit_date",
+      "type": "DATE",
+      "mode": "NULLABLE",
+      "description": "MANDATORY: The date when the party stopped being a customer. Use NULL if the Party has not stopped being a customer."
+    },
+    {
+      "name": "join_date",
+      "type": "DATE",
+      "mode": "NULLABLE",
+      "description": "MANDATORY: Date when the Party first became your customer. Use NULL if the Party has been entered into your systems but has not yet opened an account."
+    },
+    {
+      "name": "assets_value_range",
+      "type": "STRUCT",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Approximate value of assets held by the Party. Where possible, this estimate should include assets held by other financial institutions. Include at least the start or end amount.",
+      "fields": [
+        {
+          "name": "start_amount",
+          "type": "STRUCT",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: The lower bound of the money range (inclusive) or NULL if there is no bound. If provided, it should be positive.",
+          "fields": [
+            {
+              "name": "currency_code",
+              "type": "STRING",
+              "mode": "REQUIRED",
+              "description": "MANDATORY: The three-letter currency code defined in ISO 4217."
+            },
+            {
+              "name": "units",
+              "type": "INT64",
+              "mode": "REQUIRED",
+              "description": "MANDATORY: The whole units of the amount. For example, if currency_code is USD, then 1 unit is one US dollar."
+            },
+            {
+              "name": "nanos",
+              "type": "INT64",
+              "mode": "REQUIRED",
+              "description": "MANDATORY: Number of nano (10^-9) units of the amount. The value must be between 0 and 999,999,999, inclusive. Nanos must be positive or zero."
+            }
+          ]
+        },
+        {
+          "name": "end_amount",
+          "type": "STRUCT",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: The upper bound of the money range (exclusive) or NULL if there is no bound.  If provided, it should be positive. The range represents a single value when start_amount is equal to end_amount.",
+          "fields": [
+            {
+              "name": "currency_code",
+              "type": "STRING",
+              "mode": "REQUIRED",
+              "description": "MANDATORY: The three-letter currency code defined in ISO 4217."
+            },
+            {
+              "name": "units",
+              "type": "INT64",
+              "mode": "REQUIRED",
+              "description": "MANDATORY: The whole units of the amount. For example, if currency_code is USD, then 1 unit is one US dollar."
+            },
+            {
+              "name": "nanos",
+              "type": "INT64",
+              "mode": "REQUIRED",
+              "description": "MANDATORY: Number of nano (10^-9) units of the amount. The value must be between 0 and 999,999,999, inclusive. Nanos must be positive or zero."
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "civil_status_code",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Civil status of the Party, based on ISO 20022 Civil Status Codes. If not known, use UNKNOWN. One of: [SINGLE:MARRIED:LEGALLY_DIVORCED:DIVORCED:WIDOW:STABLE_UNION:SEPARATED:UNKNOWN]."
+    },
+    {
+      "name": "phone_numbers",
+      "type": "STRUCT",
+      "mode": "REPEATED",
+      "description": "EXPERIMENTAL: Zero or more phone numbers of this Party.",
+      "fields": [
+        {
+          "name": "type",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Type of this phone number. Supported Values: PERSONAL, CORPORATE One of: [PERSONAL:CORPORATE]."
+        },
+        {
+          "name": "phone",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Phone number. Either this field or obfuscated_phone should be filled in."
+        },
+        {
+          "name": "obfuscated_phone",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "MANDATORY: Phone number, obfuscated. Do not use NULL for this field."
+        },
+        {
+          "name": "region_code",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: Region code in two-letter Unicode CLDR code format, if known."
+        }
+      ]
+    },
+    {
+      "name": "email_addresses",
+      "type": "STRUCT",
+      "mode": "REPEATED",
+      "description": "EXPERIMENTAL: Zero or more email addresses of this Party.",
+      "fields": [
+        {
+          "name": "type",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Type of this email address. Supported values: PERSONAL, CORPORATE One of: [PERSONAL:CORPORATE]."
+        },
+        {
+          "name": "email",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Email address. Either this field or obfuscated_email should be filled in."
+        },
+        {
+          "name": "obfuscated_email",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Email address, obfuscated."
+        },
+        {
+          "name": "region_code",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: Region code in two-letter Unicode CLDR code format, if known."
+        }
+      ]
+    },
+    {
+      "name": "education_level_code",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Most recent educational level of the Party, defined in International Standard Classification of Education (ISCED-11). If not known, use UNKNOWN. Based on standard ISCED-Attainment (ISCED-A) coding. One of: [LESS_THAN_PRIMARY_EDUCATION:PRIMARY_EDUCATION:LOWER_SECONDARY_EDUCATION:UPPER_SECONDARY_EDUCATION:POST_SECONDARY_NON_TERTIARY_EDUCATION:SHORT_CYCLE_TERTIARY_EDUCATION:BACHELORS_OR_EQUIVALENT:MASTERS_OR_EQUIVALENT:DOCTORAL_OR_EQUIVALENT:NOT_ELSEWHERE_CLASSIFIED:UNKNOWN]."
+    }
+  ],
+  "Transaction": [
+    {
+      "name": "transaction_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Unique ID of this transaction, from the point of view of the specified Account. Note that a transfer is between two accounts, both in the Account table, and should be represented by two transactions with separate transaction IDs, one with direction = DEBIT and one with direction = CREDIT."
+    },
+    {
+      "name": "validity_start_time",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Timestamp when the information of this row was the correct state of the entity."
+    },
+    {
+      "name": "is_entity_deleted",
+      "type": "BOOL",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: If set to TRUE, indicates the Transaction is no longer present in your system of record."
+    },
+    {
+      "name": "source_system",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality."
+    },
+    {
+      "name": "type",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: High level type of the transaction. Supported values: CARD, transaction involving a credit or debit card (includes GPay); CASH, transaction where cash is paid into or withdrawn from an account; CHECK, transaction where a cheque is used; WIRE, default for other transactions, including transfers between accounts at the same or different banks. One of: [WIRE:CASH:CHECK:CARD:OTHER:CRYPTO]."
+    },
+    {
+      "name": "direction",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Direction of the transaction assets flow from the point of view of the specified account ID. Uses common definition of credit/debit in banking. Supported values: DEBIT, represents a transfer of value from this account; CREDIT, represents a transfer of value to this account One of: [DEBIT:CREDIT]."
+    },
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Account ID of the Account in the Account Party Link table."
+    },
+    {
+      "name": "counterparty_account",
+      "type": "STRUCT",
+      "mode": "NULLABLE",
+      "description": "MANDATORY: Details of counterparty and their account used in this transaction. Relates specifically to WIRE, CASH and CHECK transactions. For CARD transactions, this may represent the merchant or be NULL in case you do not have these details.",
+      "fields": [
+        {
+          "name": "account_id",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "MANDATORY: Account ID of a transaction's counterparty, if in the AccountPartyLink table. Can be NULL if the counterparty account is not represented in the Account Party Link table, for example, the customer of another financial institution."
+        },
+        {
+          "name": "counterparty_name",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: Name of the counterparty."
+        },
+        {
+          "name": "addresses",
+          "type": "STRUCT",
+          "mode": "REPEATED",
+          "description": "EXPERIMENTAL: Counterparty address, if known.",
+          "fields": [
+            {
+              "name": "address_line",
+              "type": "STRING",
+              "mode": "NULLABLE",
+              "description": "RECOMMENDED: First line of address in case not captured by street and building number."
+            },
+            {
+              "name": "street",
+              "type": "STRING",
+              "mode": "NULLABLE",
+              "description": "RECOMMENDED: Street of the address."
+            },
+            {
+              "name": "building_number",
+              "type": "STRING",
+              "mode": "NULLABLE",
+              "description": "RECOMMENDED: Building number of the address."
+            },
+            {
+              "name": "post_office_box",
+              "type": "STRING",
+              "mode": "NULLABLE",
+              "description": "RECOMMENDED: PO Box identifier in case the address is a PO Box."
+            },
+            {
+              "name": "post_code",
+              "type": "STRING",
+              "mode": "NULLABLE",
+              "description": "RECOMMENDED: Postcode. Include postcode for each Party where this is known to the bank."
+            },
+            {
+              "name": "town",
+              "type": "STRING",
+              "mode": "NULLABLE",
+              "description": "RECOMMENDED: Town of the address."
+            },
+            {
+              "name": "subregion",
+              "type": "STRING",
+              "mode": "NULLABLE",
+              "description": "MANDATORY: Region within the country. For AML do not use NULL for this field."
+            },
+            {
+              "name": "region_code",
+              "type": "STRING",
+              "mode": "NULLABLE",
+              "description": "MANDATORY: Country or region in two-letter Unicode CLDR code format. Do not use NULL for this field."
+            }
+          ]
+        },
+        {
+          "name": "region_code",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "RECOMMENDED: Country or region of the counterparty account in two-letter Unicode CLDR code format. In the case of cash withdrawals or deposits, this should be the country where the cash was withdrawn or deposited."
+        }
+      ]
+    },
+    {
+      "name": "book_time",
+      "type": "TIMESTAMP",
+      "mode": "NULLABLE",
+      "description": "MANDATORY: The time when the transaction was posted to the account (recommended). You may use a different time if preferred by your internal processes and controls."
+    },
+    {
+      "name": "normalized_booked_amount",
+      "type": "STRUCT",
+      "mode": "NULLABLE",
+      "description": "MANDATORY: Non-negative booked amount posted on the party's account, normalized to a standard currency for the whole dataset.",
+      "fields": [
+        {
+          "name": "currency_code",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "MANDATORY: The three-letter currency code defined in ISO 4217."
+        },
+        {
+          "name": "units",
+          "type": "INT64",
+          "mode": "REQUIRED",
+          "description": "MANDATORY: The whole units of the amount. For example, if currency_code is USD, then 1 unit is one US dollar."
+        },
+        {
+          "name": "nanos",
+          "type": "INT64",
+          "mode": "REQUIRED",
+          "description": "MANDATORY: Number of nano (10^-9) units of the amount. The value must be between 0 and 999,999,999, inclusive. Nanos must be positive or zero."
+        }
+      ]
+    },
+    {
+      "name": "ip_address",
+      "type": "STRUCT",
+      "mode": "NULLABLE",
+      "description": "EXPERIMENTAL: Ip address from which the transaction was booked.",
+      "fields": [
+        {
+          "name": "type",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "MANDATORY: IP address type. One of: [V4:V6]."
+        },
+        {
+          "name": "ip",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: IP address."
+        },
+        {
+          "name": "obfuscated_ip",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: IP address, obfuscated."
+        },
+        {
+          "name": "region_code",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: Region code extracted from the IP address in two-letter Unicode CLDR code format, if known."
+        },
+        {
+          "name": "is_vpn",
+          "type": "BOOL",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: Whether a VPN service was used."
+        }
+      ]
+    }
+  ],
+  "InteractionEvent": [
+    {
+      "name": "interaction_event_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "EXPERIMENTAL: Unique interaction event ID string."
+    },
+    {
+      "name": "party_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "EXPERIMENTAL: Interacting party ID."
+    },
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "EXPERIMENTAL: The ID of an account directly related to this event, if any."
+    },
+    {
+      "name": "type",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "EXPERIMENTAL: Type of the interaction event. Must be one of the enum values. Make sure to check the documentation on this field. One of: [LOGIN:PAYMENT_METHOD_ADDED:KYC_CHANGE:PASSWORD_CHANGE:OTHER]."
+    },
+    {
+      "name": "event_time",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "EXPERIMENTAL: Time when the event happened."
+    },
+    {
+      "name": "ip_address",
+      "type": "STRUCT",
+      "mode": "NULLABLE",
+      "description": "EXPERIMENTAL: IP address of the device that the Party is using for this interaction.",
+      "fields": [
+        {
+          "name": "type",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "MANDATORY: IP address type. One of: [V4:V6]."
+        },
+        {
+          "name": "ip",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: IP address."
+        },
+        {
+          "name": "obfuscated_ip",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: IP address, obfuscated."
+        },
+        {
+          "name": "region_code",
+          "type": "STRING",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: Region code extracted from the IP address in two-letter Unicode CLDR code format, if known."
+        },
+        {
+          "name": "is_vpn",
+          "type": "BOOL",
+          "mode": "NULLABLE",
+          "description": "EXPERIMENTAL: Whether a VPN service was used."
+        }
+      ]
+    }
+  ],
+  "PartySupplementaryData": [
+    {
+      "name": "party_supplementary_data_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Identifier for the supplementary data field. This ID should match between Datasets used for the same modeling process (for example, for tuning, training, predict and backtesting steps). IDs may use letters, numbers, and underscores, matching the regular expression [a-zA-Z0-9_]. The first character should be a letter or number, matching the regular expression [a-zA-Z0-9]. With engine versions released prior to 2024-03-01 these IDs must use values from 1 to 100."
+    },
+    {
+      "name": "validity_start_time",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Timestamp when this record became valid."
+    },
+    {
+      "name": "is_entity_deleted",
+      "type": "BOOL",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: If set to TRUE, indicates this supplementary data field no longer has a value for this Party."
+    },
+    {
+      "name": "source_system",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality."
+    },
+    {
+      "name": "party_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: ID of the Party to which this value of this supplementary data field refers."
+    },
+    {
+      "name": "supplementary_data_payload",
+      "type": "STRUCT",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Payload of the supplementary data; only supports float64 values.",
+      "fields": [
+        {
+          "name": "value",
+          "type": "FLOAT64",
+          "mode": "REQUIRED",
+          "description": "MANDATORY: The value of this supplementary data field. Type: float64."
+        }
+      ]
+    }
+  ],
+  "RiskCaseEvent": [
+    {
+      "name": "risk_case_event_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Unique ID for this event."
+    },
+    {
+      "name": "event_time",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Timestamp when this event occurs."
+    },
+    {
+      "name": "type",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Type of risk case event. Only AML events are supported. The minimum requirement for the AML product to work is to provide a single AML_PROCESS_START, AML_PROCESS_END and where applicable AML_EXIT event per Party and risk_case_id. It is strongly recommended to also include AML_SUSPICIOUS_ACTIVITY_START and AML_SUSPICIOUS_ACTIVITY_END events for best model performance. One of: [AML_SUSPICIOUS_ACTIVITY_START:AML_SUSPICIOUS_ACTIVITY_END:AML_PROCESS_START:AML_PROCESS_END:AML_ALERT_GOOGLE:AML_ALERT_LEGACY:AML_ALERT_ADHOC:AML_ALERT_EXPLORATORY:AML_ALERT_EXTERNAL:AML_SAR:AML_EXIT]."
+    },
+    {
+      "name": "party_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: The ID in the Party table of the Party that is the subject of this investigation process."
+    },
+    {
+      "name": "risk_typology_measurements",
+      "type": "STRUCT",
+      "mode": "REPEATED",
+      "description": "RECOMMENDED: Information about the measured risks for this event. For SARs and exits, these are the risks identified in the investigation process and justifying the SAR or exit. Typologies specified for any risk case event resulting in an exit are used in measuring risk coverage.",
+      "fields": [
+        {
+          "name": "risk_typology_id",
+          "type": "STRING",
+          "mode": "REQUIRED",
+          "description": "MANDATORY: Unique ID of the risk type being measured."
+        }
+      ]
+    },
+    {
+      "name": "risk_case_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: The ID of the overall case to which this event belongs."
+    }
+  ],
+  "AccountPartyLink": [
+    {
+      "name": "account_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Unique ID for this Account."
+    },
+    {
+      "name": "party_id",
+      "type": "STRING",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Unique ID for this Party in the Party table."
+    },
+    {
+      "name": "validity_start_time",
+      "type": "TIMESTAMP",
+      "mode": "REQUIRED",
+      "description": "MANDATORY: Timestamp when the information of this row was in the correct state for the entity."
+    },
+    {
+      "name": "is_entity_deleted",
+      "type": "BOOL",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: If set to TRUE, indicates the link is no longer present."
+    },
+    {
+      "name": "role",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "MANDATORY: Describes how the party is related to the account. In particular, capturing primary and secondary account holders. Each Account should have at least one PRIMARY_HOLDER at any given time. Do not use NULL for this field. Supported values: PRIMARY_HOLDER - a party designated as the main (or joint main) holder of the account. SECONDARY_HOLDER - another party who is not the main account holder but with similar access and similar level of responsibility. SUPPLEMENTARY_HOLDER - any other party with either significantly reduced access or significantly reduced responsibility for the account. One of: [PRIMARY_HOLDER:SECONDARY_HOLDER:SUPPLEMENTARY_HOLDER]."
+    },
+    {
+      "name": "source_system",
+      "type": "STRING",
+      "mode": "NULLABLE",
+      "description": "RECOMMENDED: Name of the system that this row was fetched from to help manage data lineage. This field has no impact on AML AI functionality."
+    }
+  ]
+}

@@ -103,37 +103,68 @@ def tunnel_healthy(url):
     if not url:
         return False
     try:
-        return requests.get(f"{url}/api/tags", timeout=10).status_code == 200
+        return requests.get(f"{url}/api/tags", timeout=15).status_code == 200
     except requests.RequestException:
         return False
+
+
+# A single failed health check was restarting cloudflared -- and triggering a
+# full ~2-3 minute redeploy of aml-model-backend, since a new tunnel means a
+# new OLLAMA_HOST -- on every transient latency blip from Cloudflare's free
+# quick-tunnel edge. In practice that meant a real deploy roughly every 5-13
+# minutes, each one an actual outage window (nothing is serving at all mid-
+# deploy, not even the fallback model, since the whole process is restarting)
+# -- the watchdog itself became the main source of "Service unavailable"
+# reports. Now it only restarts after FAILURE_THRESHOLD consecutive failed
+# checks, polling faster while degraded so it still reacts quickly to a real
+# outage without churning on noise.
+FAILURE_THRESHOLD = 3
+RETRY_INTERVAL_SECONDS = 10
 
 
 def main():
     proc = None
     current_url = None
+    consecutive_failures = 0
     print("[watchdog] Starting. Ctrl-C to stop.", flush=True)
     try:
         while True:
-            if proc is None or proc.poll() is not None or not tunnel_healthy(current_url):
-                if proc is not None and proc.poll() is None:
-                    print("[watchdog] Tunnel unhealthy, restarting cloudflared...", flush=True)
-                    proc.terminate()
-                    try:
-                        proc.wait(timeout=10)
-                    except subprocess.TimeoutExpired:
-                        proc.kill()
-                proc, new_url = start_tunnel()
-                if new_url is None:
-                    print("[watchdog] cloudflared exited without printing a URL; retrying shortly.", flush=True)
-                    time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
-                    continue
-                if new_url != current_url:
-                    current_url = new_url
-                    print(f"[watchdog] Tunnel URL: {current_url}", flush=True)
-                    try:
-                        update_ollama_host(current_url)
-                    except requests.RequestException as exc:
-                        print(f"[watchdog] Failed to update Render: {exc}", flush=True)
+            process_dead = proc is None or proc.poll() is not None
+            healthy = False if process_dead else tunnel_healthy(current_url)
+
+            if healthy:
+                consecutive_failures = 0
+                time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
+                continue
+
+            consecutive_failures += 1
+            if not process_dead and consecutive_failures < FAILURE_THRESHOLD:
+                print(f"[watchdog] Health check failed ({consecutive_failures}/{FAILURE_THRESHOLD}), rechecking shortly...", flush=True)
+                time.sleep(RETRY_INTERVAL_SECONDS)
+                continue
+
+            if process_dead:
+                print("[watchdog] cloudflared process exited, restarting...", flush=True)
+            else:
+                print(f"[watchdog] Tunnel unhealthy after {consecutive_failures} consecutive checks, restarting cloudflared...", flush=True)
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+            consecutive_failures = 0
+            proc, new_url = start_tunnel()
+            if new_url is None:
+                print("[watchdog] cloudflared exited without printing a URL; retrying shortly.", flush=True)
+                time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
+                continue
+            if new_url != current_url:
+                current_url = new_url
+                print(f"[watchdog] Tunnel URL: {current_url}", flush=True)
+                try:
+                    update_ollama_host(current_url)
+                except requests.RequestException as exc:
+                    print(f"[watchdog] Failed to update Render: {exc}", flush=True)
             time.sleep(HEALTH_CHECK_INTERVAL_SECONDS)
     except KeyboardInterrupt:
         pass

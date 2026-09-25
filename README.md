@@ -338,8 +338,9 @@ python eval/evaluate_text2sql.py --testcases eval/eval_heldout.json --out result
 Both services' full HTTP contracts — every endpoint, request/response schema, auth scheme, and status
 code — are documented as OpenAPI 3.0 specs and viewable as an interactive Swagger UI reference:
 
-**[Browse the API docs](https://claude.ai/artifact/W4uwguFSXbMRzgDmU15deA)** (switch between the two
-services with the tabs at the top)
+**[Browse the API docs](docs/api-reference.html)** (switch between the two services with the tabs at the
+top) — a self-contained page with both specs embedded, so it renders standalone with no build step; open
+it directly in a browser, or serve `docs/` and open it over HTTP.
 
 The raw specs are also committed at [`docs/openapi-analytics-service.json`](docs/openapi-analytics-service.json)
 (the public product's full surface: auth, `/query`, workspace, status/metrics) and

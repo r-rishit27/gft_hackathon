@@ -333,6 +333,22 @@ python pipeline/text2sql_falkordb.py --with-system-prompt "Show the top 10 parti
 python eval/evaluate_text2sql.py --testcases eval/eval_heldout.json --out results.json
 ```
 
+## API reference
+
+Both services' full HTTP contracts — every endpoint, request/response schema, auth scheme, and status
+code — are documented as OpenAPI 3.0 specs and viewable as an interactive Swagger UI reference:
+
+**[Browse the API docs](https://claude.ai/artifact/W4uwguFSXbMRzgDmU15deA)** (switch between the two
+services with the tabs at the top)
+
+The raw specs are also committed at [`docs/openapi-analytics-service.json`](docs/openapi-analytics-service.json)
+(the public product's full surface: auth, `/query`, workspace, status/metrics) and
+[`docs/openapi-model-service.json`](docs/openapi-model-service.json) (the internal `/generate-sql` API).
+They're two separate documents rather than one merged spec because both services expose `GET /health`, and
+OpenAPI can't have two operations under the same path string in a single document. `aml-model-backend` also
+serves FastAPI's own auto-generated docs live at `/docs` for its one real endpoint, but the Swagger
+reference above is the complete, hand-written contract for both services together.
+
 ## Design notes
 
 - **Read-only by construction, not by trust.** The system prompt instructs SELECT-only, read-only

@@ -7,6 +7,27 @@ dataset through a separate read-only analytics service. The original SQL-only en
 **Live application:** [aml-analytics-service.onrender.com/login](https://aml-analytics-service.onrender.com/login)
 — see [Deployment](#deployment) below for what's actually running there and its caveats before relying on it.
 
+### Walkthrough
+
+Sign in with one of the three demo roles (`monitoring`, `investigation` or `admin`):
+
+![Sign-in page: username and password fields for the AML Analytics login](docs/images/analytics-login.jpg)
+
+`/profile` shows the signed-in identity's role, access level, and exactly which tables/countries it can see
+— here, the `investigation` role is limited to Explainability, Party, RiskCaseEvent and RiskScores:
+
+![Profile page showing the investigation role's permitted tables (Explainability, Party, RiskCaseEvent, RiskScores) and all seven permitted countries](docs/images/analytics-profile.jpg)
+
+Ask a question in plain English on the Analysis page; it generates SQL, runs it against BigQuery, and
+renders a chart plus a one-line summary:
+
+![Analysis dashboard: a free-form question box, FAQ/history panel, and a bar chart comparing transaction counts across WIRE, CASH, CHECK, CARD, OTHER and CRYPTO](docs/images/analytics-dashboard.png)
+
+Expanding "Analysis details" on any result shows the executed SQL, BigQuery job ID, bytes scanned, schema
+version, and the access scope it ran under — nothing here is fabricated or estimated:
+
+![Analysis details panel showing the executed SQL query, BigQuery job ID, bytes scanned, schema version, and access scope](docs/images/analytics-query-detail.png)
+
 ## Local live-data integration
 
 Use [`docs/ARCHITECTURE.md`'s "analytics_service in Detail"](docs/ARCHITECTURE.md#analytics_service-in-detail)

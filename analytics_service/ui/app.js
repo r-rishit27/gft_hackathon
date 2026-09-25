@@ -207,6 +207,10 @@ $("clear-history").addEventListener("click", async () => {
   try { const data = await api("/workspace/history", null, "DELETE"); if (version === generation) { library = data; renderLibrary(); } }
   catch (error) { if (version === generation) $("message").textContent = error.message; }
 });
+function setStatus(text, state) {
+  $("status").textContent = text;
+  $("status-dot").className = "status-dot status-dot--" + state;
+}
 async function connect(version) {
   const response = await api("/status");
   if (version !== generation) return;
@@ -216,7 +220,7 @@ async function connect(version) {
   $("save-question").disabled = false;
   $("run").textContent = "Analyze";
   $("scope").textContent = marketNames(response.scope);
-  $("status").textContent = ready ? "Connected" : "Service unavailable";
+  setStatus(ready ? "Connected" : "Service unavailable", ready ? "up" : "down");
   $("profile-link").textContent = `${title(response.profile.role)} · ${response.profile.username}`;
   $("question-library").hidden = false;
   $("empty-title").textContent = "Your next insight starts here";
@@ -232,7 +236,7 @@ function disconnect() {
   for (const id of ["question", "run", "save-question"]) $(id).disabled = true;
   $("question").value = "";
   $("run").textContent = "Analyze";
-  $("status").textContent = "Sign in required";
+  setStatus("Sign in required", "neutral");
   $("scope").textContent = "Not signed in";
   $("empty-title").textContent = "Your next insight starts here";
   $("empty-status").textContent = "Sign in to begin your analysis";
@@ -244,7 +248,7 @@ function disconnect() {
 function connectionError(error) {
   disconnect();
   if (error.code === "unauthorized") location.replace("/login");
-  else $("message").textContent = "Analysis is temporarily unavailable. Please refresh to try again.";
+  else { $("message").textContent = "Analysis is temporarily unavailable. Please refresh to try again."; setStatus("Service unavailable", "down"); }
 }
 if (sessionChannel) sessionChannel.onmessage = () => { disconnect(); connect(generation).catch(connectionError); };
 // HttpOnly session cookies restore an existing session; no credentials enter browser storage.
@@ -288,7 +292,7 @@ function render(result) {
   $("empty").hidden = true;
   $("results").hidden = false;
   $("metric-title").textContent = result.question || title(result.metric);
-  $("status").textContent = result.mode === "offline_fixture" ? "Offline demonstration" : "Connected";
+  setStatus(result.mode === "offline_fixture" ? "Offline demonstration" : "Connected", result.mode === "offline_fixture" ? "neutral" : "up");
   $("freshness").textContent = `Data as of ${new Date(result.data_as_of).toLocaleDateString("en-GB", {day:"numeric",month:"short",year:"numeric",timeZone:"UTC"})}`;
   const routine = new Set(["Synthetic demo data; risk outputs are simulated.", "KPI definitions require domain-owner approval before real banking use.", "AI-generated SQL passed schema, access and execution checks. These checks do not prove it matches your intended business meaning."]);
   const important = result.warnings.filter((warning) => !routine.has(warning));

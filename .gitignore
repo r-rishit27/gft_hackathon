@@ -3,6 +3,8 @@
 analytics_service/*.local.json
 analytics_service/*.local.sqlite*
 .venv/
+# unredacted laptop-to-laptop credential transfer bundle -- never commit
+aml-laptop-setup-PRIVATE/
 
 # python
 __pycache__/

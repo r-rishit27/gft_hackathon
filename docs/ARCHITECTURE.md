@@ -2,7 +2,7 @@
 
 Design and repository assessment: 2026-09-19. This document proposes the next architecture; it does not deploy services or certify banking compliance.
 
-Implementation update: `analytics_service/` now provides an isolated six-KPI prototype, independent validation, a BigQuery adapter and an offline-tested dashboard. See [`analytics_service` in Detail](#analytics_service-in-detail) below and [verification report](../analytics_service/VERIFICATION.md). The inventory below records the original model-service baseline, not the new package. Live integration and cloud IAM/perimeter verification remain pending.
+Implementation update: `analytics_service/` now provides an isolated six-KPI prototype, independent validation, a BigQuery adapter and an offline-tested dashboard. See [`analytics_service` in Detail](#analytics_service-in-detail) below and [role-based auth verification](../analytics_service/role-based-auth-verification.md). The inventory below records the original model-service baseline, not the new package. Live integration and cloud IAM/perimeter verification remain pending.
 
 Deployment update (2026-09-25): a PoC instance of `analytics_service` and the model service are now publicly reachable — see [Current Deployment](#current-deployment) below. This is a fast, minimal deployment for demonstration, not an implementation of the target design in this document; none of the Cloud Run, Secret Manager, VPC-SC perimeter, or structured audit-log elements described below are in place for it.
 
@@ -186,7 +186,7 @@ gcloud auth application-default set-quota-project 1076784773678
 .venv/bin/python -m pytest analytics_service/tests -q
 ```
 
-Unit tests use explicit doubles/DuckDB fixtures, isolated from the live application. A live browser check (`node analytics_service/tests/ui_roles.cjs`, Playwright, `NODE_PATH`, local Chrome, the service running) exercises all three role profiles against real BigQuery-backed questions; `ui_smoke.cjs` similarly drives one real query as Monitoring plus isolated pagination/empty/partial-result rendering cases. Skipped live tests prove nothing about connectivity — see `analytics_service/VERIFICATION.md` for the actual evidence and its limitations. None of this is a banking compliance certification or an automated AML decision system.
+Unit tests use explicit doubles/DuckDB fixtures, isolated from the live application. A live browser check (`node analytics_service/tests/ui_roles.cjs`, Playwright, `NODE_PATH`, local Chrome, the service running) exercises all three role profiles against real BigQuery-backed questions; `ui_smoke.cjs` similarly drives one real query as Monitoring plus isolated pagination/empty/partial-result rendering cases. Skipped live tests prove nothing about connectivity — see `analytics_service/role-based-auth-verification.md` for the actual evidence and its limitations. None of this is a banking compliance certification or an automated AML decision system.
 
 ## Scope and Current Boundary
 

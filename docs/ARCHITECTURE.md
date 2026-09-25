@@ -4,6 +4,20 @@ Design and repository assessment: 2026-09-19. This document proposes the next ar
 
 Implementation update: `analytics_service/` now provides an isolated six-KPI prototype, independent validation, a BigQuery adapter and an offline-tested dashboard. See [the service README](../analytics_service/README.md) and [verification report](../analytics_service/VERIFICATION.md). The inventory below records the original model-service baseline, not the new package. Live integration and cloud IAM/perimeter verification remain pending.
 
+Deployment update (2026-09-25): a PoC instance of `analytics_service` and the model service are now publicly reachable — see [Current Deployment](#current-deployment) below. This is a fast, minimal deployment for demonstration, not an implementation of the target design in this document; none of the Cloud Run, Secret Manager, VPC-SC perimeter, or structured audit-log elements described below are in place for it.
+
+## Current Deployment
+
+| Component | Where | Notes |
+| --- | --- | --- |
+| `analytics_service` (product UI, auth, BigQuery execution) | Render, `aml-analytics-service`, free tier | Public HTTPS; role-based login as designed in `analytics_service/README.md` |
+| `app.py` (model service, `/generate-sql` only) | Render, `aml-model-backend`, free tier | Public HTTPS but intended as an internal dependency only; called by `aml-analytics-service` over HTTPS, not loopback (the two run as separate Render services, each with its own memory, not one process pair sharing a container) |
+| SQLCoder (`mannix/defog-llama3-sqlcoder-8b`) | Local machine, via Ollama, exposed through a Cloudflare quick tunnel | Not a cloud-hosted model endpoint; the tunnel is ephemeral and has no uptime guarantee. If the local machine or tunnel goes down, both Render services stay reachable but SQL generation stops working. |
+| BigQuery access | Application Default Credentials from a personal `gcloud auth application-default login`, impersonating the three scoped service accounts (`aml-monitoring-poc`, `aml-investigation-poc`, `aml-admin-poc`) | Not a dedicated service-account key issued for this deployment; uploaded to Render as a secret file. Revocation requires redoing the login and re-uploading. |
+| Role/session secrets (`config.roles.local.json`) | Uploaded to Render as a secret file, not committed to git | `profile-logins.local.json` (plaintext reference passwords) is never uploaded or read by the running server -- it exists only for a human operator to read the three demo logins from. |
+
+This deployment does not implement §"Country and Row-Level Isolation"'s per-request entitlement architecture beyond what `analytics_service` already does locally (see its README), has no Secret Manager, no VPC Service Controls perimeter, no Cloud Run isolation, and no structured/retained audit log beyond Render's own request logs. Treat it as a working demo of the six-KPI prototype, not a governed deployment satisfying the request-processing contract below.
+
 ## Scope and Current Boundary
 
 - Target: `gen-lang-client-0810987953.aml_demo`, documented dataset location `asia-south1`.

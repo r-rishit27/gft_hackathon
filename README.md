@@ -8,9 +8,10 @@ dataset through a separate read-only analytics service. The original SQL-only en
 
 Use [the local integration guide](analytics_service/README.md) for Ollama setup, Google login,
 approved read-only access provisioning and the free-form results dashboard. The requested model is
-`mannix/defog-llama3-sqlcoder-8b`. No public cloud deployment or mock-data fallback is enabled.
+`mannix/defog-llama3-sqlcoder-8b`. No mock-data fallback is used by the live path.
 
-See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results and known limitations.
+See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results and known limitations,
+and [Deployment](#deployment) below for the current public PoC instances.
 
 ## BigQuery demo dataset
 
@@ -39,6 +40,43 @@ python3 dataset/check_naming.py
 The archive includes source copies; `-n` preserves the current checked-in files.
 
 ---
+
+## Deployment
+
+Two Render services make up the current PoC deployment; there is no bundled frontend or Vercel deployment
+anymore (an earlier `frontend/`/`vercel-frontend` chat UI was retired once `analytics_service` became the
+real product surface — see git history if you need that code back).
+
+| Service | Platform | What it is |
+| --- | --- | --- |
+| [`aml-analytics-service`](https://aml-analytics-service.onrender.com) | Render (free tier) | The deployed product: `analytics_service`'s role-based login, BigQuery-backed dashboard, and query history. Sign in at `/login`. |
+| `aml-model-backend` | Render (free tier) | `app.py` alone — an internal-only `POST /generate-sql` API with no UI. `aml-analytics-service` calls it over HTTPS; nothing else should depend on it directly. |
+| Ollama / SQLCoder | This laptop, via a Cloudflare quick tunnel | Both Render services reach `mannix/defog-llama3-sqlcoder-8b` through a `cloudflared tunnel --url http://localhost:11434 --http-host-header localhost:11434` tunnel to Ollama running locally, not a cloud-hosted model. |
+
+**This is deliberately not the governed architecture `docs/ARCHITECTURE.md` describes** (no Cloud Run, no
+Secret Manager, no VPC-SC perimeter, no structured audit log) — it's the fastest path to a working public
+demo, and it inherits every limitation that implies:
+
+- **The Ollama tunnel is the weak link.** If this laptop sleeps, loses network, or the `cloudflared`
+  process dies, SQL generation stops working on both Render services (their own `/health`/`/login` pages
+  stay up, but any real query fails). There is no auto-restart or monitoring on the tunnel.
+- **Free tier means cold starts and tight memory.** Each service spins down after inactivity and takes
+  tens of seconds to cold-start on the next request. The two services were deliberately split into
+  separate Render instances (rather than one instance running both processes) after the combined version
+  was observed OOM-restarting mid-query — each now gets its own 512MB instead of sharing one.
+- **BigQuery auth reuses a personal Google login's Application Default Credentials**, uploaded to Render
+  as a secret file, rather than a dedicated service-account key scoped to just this deployment. Revoking
+  it later means redoing that `gcloud auth application-default login` and re-uploading the credential.
+- **Two local-only secret files never leave this laptop by design:** `analytics_service/config.roles.local.json`
+  (uploaded to Render as a secret file, not committed) and `profile-logins.local.json` (plaintext
+  reference passwords for the three demo logins — read by *you*, never by the running server; see
+  `analytics_service/README.md`).
+
+Redeploying either Render service (after a code change, a new Cloudflare tunnel URL, etc.) is done via the
+[Render CLI](https://render.com/docs/cli) rather than a `render.yaml` Blueprint import, since Render's
+Blueprint flow only launches services from the dashboard, not headlessly. `render.yaml` in this repo
+documents `aml-model-backend`'s configuration for reference/reproducibility; it isn't wired to auto-deploy
+either service end-to-end.
 
 ## Architecture
 
@@ -97,30 +135,44 @@ validated SQL + violation list, returned to the caller
 ```
 .
 ├── app.py                    # FastAPI model-service API (entry point) — run with `uvicorn app:app`
-│                              #   internal-only: no bundled frontend; analytics_service is the deployed UI
-├── pipeline/                 # Core text-to-SQL pipeline (importable package)
-│   ├── text2sql_falkordb.py  #   retrieval + schema serialization + exemplar shortcut + inference
-│   ├── schema_validator.py   #   final validation/repair against the canonical schema file
-│   └── semantic_search.py    #   shared sentence-embedding helper used across retrieval/repair
+│                              #   internal-only: no bundled frontend; deployed as aml-model-backend
+├── render.yaml                # Render service definition reference for aml-model-backend
+├── requirements.txt            # Root install target: -r analytics_service/requirements.txt + model-service deps
+├── .env.example                # FalkorDB / Ollama / schema-backend env var template
+├── pipeline/                  # Core text-to-SQL pipeline (importable package)
+│   ├── text2sql_falkordb.py   #   retrieval + schema serialization + exemplar shortcut + inference
+│   ├── schema_validator.py    #   final validation/repair against the canonical schema file
+│   ├── bigquery_schema.py     #   schema adapter analytics_service reads (SCHEMA_BACKEND=auto|falkordb)
+│   └── semantic_search.py     #   shared sentence-embedding helper used across retrieval/repair
 ├── graph/
 │   └── build_falkordb_graph.py   # Loads schema/aml_data_model_schema.json into FalkorDB as a knowledge graph
 ├── schema/
-│   ├── aml_data_model_schema.json  # Canonical AML input/output data model (tables, fields, types, linkages)
+│   ├── aml_data_model_schema.json  # Canonical AML input/output data model (legacy model path)
 │   └── aml_kpi_queries.sql         # Hand-written reference KPI queries against that schema
+├── dataset/                   # Deployed BigQuery dataset: schema/enum metadata, generator, loading/migration
+│   ├── aml_data_model_schema.json  #   deployed schema + observed-value metadata (analytics_service's source)
+│   └── README.md               #   dataset documentation and reproducible loading instructions
+├── analytics_service/          # The actual deployed product: role-based auth, BigQuery execution, dashboard UI
+│   ├── app.py                 #   FastAPI app (create_app factory) — mounted at /ui, deployed as aml-analytics-service
+│   ├── local.py                #   local dev launcher (starts app.py + analytics_service.app together)
+│   ├── render_start.py         #   (unused by the current split deployment; see README §Deployment)
+│   └── README.md               #   role/login setup, IAM provisioning, session/history details
 ├── eval/
-│   ├── evaluate_text2sql.py  # Evaluation harness — runs the pipeline against a test file, scores it
-│   ├── eval_testcases.json   #   exemplar bank (also used at runtime for exemplar retrieval)
-│   ├── eval_heldout.json     #   held-out test set (paraphrases + novel questions)
-│   ├── eval_new_queries.json #   additional schema-strict test questions
-│   └── *_results.json        #   evaluation output (regenerated by evaluate_text2sql.py)
+│   ├── evaluate_text2sql.py   # Evaluation harness — runs the pipeline against a test file, scores it
+│   ├── eval_testcases.json    #   exemplar bank (also used at runtime for exemplar retrieval)
+│   ├── eval_heldout.json      #   held-out test set (paraphrases + novel questions)
+│   ├── eval_new_queries.json  #   additional schema-strict test questions
+│   └── *_results.json         #   evaluation output (regenerated by evaluate_text2sql.py)
 └── docs/
-    ├── TEST_REPORT.md        # Detailed test report: methodology, results, bugs found, limitations
-    └── reference/            # Design reference material (not part of the app)
+    ├── TEST_REPORT.md          # Detailed test report: methodology, results, bugs found, limitations
+    ├── ARCHITECTURE.md         # Target governed-architecture design + current PoC deployment notes
+    └── reference/               # Design reference material (not part of the app)
 ```
 
 ## Setup
 
-1. Copy `.env.example` to `.env` and fill in your FalkorDB connection details:
+1. Copy `.env.example` to `.env` and fill in your FalkorDB connection details (see the file for the full
+   set of variables, including `HF_TOKEN`, `SCHEMA_BACKEND`, and Ollama tuning knobs):
    ```
    FALKORDB_HOST=...
    FALKORDB_PORT=...
@@ -132,8 +184,9 @@ validated SQL + violation list, returned to the caller
    ```
 2. Install dependencies:
    ```
-   pip install fastapi "uvicorn[standard]" falkordb python-dotenv requests sentence-transformers
+   pip install -r requirements.txt
    ```
+   (This also installs `analytics_service`'s own dependencies via `-r analytics_service/requirements.txt`.)
 3. Install [Ollama](https://ollama.com) and pull the SQLCoder model (one-time, ~4.7 GB):
    ```
    ollama pull mannix/defog-llama3-sqlcoder-8b
@@ -143,15 +196,32 @@ validated SQL + violation list, returned to the caller
    ```
    python graph/build_falkordb_graph.py
    ```
+5. Authenticate to Google Cloud for BigQuery access (needed by `analytics_service`; not needed for the
+   model-service API alone). Install the [Google Cloud CLI](https://cloud.google.com/sdk/docs/install),
+   then sign in with the Google account authorized to impersonate the `aml-monitoring-poc` /
+   `aml-investigation-poc` / `aml-admin-poc` service accounts in `gen-lang-client-0810987953`:
+   ```
+   gcloud auth application-default login
+   gcloud auth application-default set-quota-project 1076784773678
+   ```
+   This writes Application Default Credentials that `analytics_service`'s BigQuery client picks up
+   automatically via `google.auth.default()` — no key file or extra config needed locally. See
+   [Deployment](#deployment) for how these same credentials get used (as a secret file) in the hosted
+   instance, and its caveats.
 
 ## Running
 
-**Model-service API** (from the project root):
+**Full product, locally** (model service + role-based dashboard together): see
+[`analytics_service/README.md`](analytics_service/README.md) — `python -m analytics_service.local --port 8012`
+starts both and prints the login URL. This is the same pair of processes as the deployed
+`aml-model-backend` / `aml-analytics-service` split, just running as one local launcher.
+
+**Model-service API alone** (from the project root):
 ```
 uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 `POST /generate-sql` with `{"question": "..."}`. Interactive API docs at `/docs`. This service has no
-frontend of its own — see `analytics_service/` for the deployed UI that calls it.
+frontend of its own.
 
 **CLI** (one-off question, no server):
 ```

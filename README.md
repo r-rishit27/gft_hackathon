@@ -19,18 +19,43 @@ and [Deployment](#deployment) below for the current public PoC instances.
 ## BigQuery demo dataset
 
 The synthetic dataset is deployed at `gen-lang-client-0810987953.aml_demo`
-in `asia-south1`: 1,000 retail customers, 50,000 transactions and 12 tables.
-Hong Kong identifiers use `HASE_HK`; the other countries use `HSBC_<COUNTRY>`.
+in `asia-south1`: 1,000 retail customers, exactly 50,000 transactions, January-August 2026, 12 tables.
+All people, accounts, events and outputs are fictional — nothing here is a real SAR or real risk assessment.
 
 - [Deployed dataset schema, enums and observed values](dataset/aml_data_model_schema.json)
-- [Dataset documentation and reproducible loading instructions](dataset/README.md)
 - [Complete data package, including the migration baseline](dataset/releases/aml_dataset_v2_20260919.zip)
 - [Cloud migration verification](dataset/reports/migration_cloud.json)
+- [`docs/ARCHITECTURE.md`'s "Dataset Design and Limitations"](docs/ARCHITECTURE.md#dataset-design-and-limitations)
+  for how the dataset was constructed, its scope/count decisions, and known schema limitations.
 
 The enriched schema under `dataset/` documents the actual BigQuery data and is the metadata source
 for local execution mode. The original `schema/` document remains available to the legacy model path.
 All data and AML outputs in this package are simulated; querying cloud-hosted rows does not make them
 real customer data or validated AML predictions.
+
+**Entity-country identifiers (v2):** Hong Kong uses `HASE_HK`; the other six countries use `HSBC_GB`,
+`HSBC_IN`, `HSBC_TW`, `HSBC_FR`, `HSBC_PL` and `HSBC_IE` (`GB` is the UK country code). Identifiers keep
+their original numeric suffixes (`HASE_HK_P0001`, `HSBC_IN_A0003`, `HSBC_FR_T000125`); customer names use
+`HASE_HK_CUSTOMER_0001` and source labels use `HASE_HK_CORE` (equivalent prefixes for the other countries).
+Transaction IDs follow their account owner's country; cases and events follow their customer's country.
+External counterparties use names like `External HK Counterparty 0001` — these do not imply bank affiliation.
+
+**Reproducing and loading the dataset** (from `dataset/`, in authenticated Google Cloud Shell for the load
+step):
+```sh
+python3 generate.py                    # reproduces the package with fixed seed 20260919
+python3 load_bigquery.py --plan        # validates file checksums, shows the load target
+python3 load_bigquery.py               # loads via the current gcloud identity; WRITE_EMPTY, stable job IDs,
+                                        # refuses to overwrite/append to unrecognized tables, resumable
+python3 enrich_schema.py               # refreshes aml_data_model_schema.json's observed-value metadata
+                                        # from local data only, without touching BigQuery or records
+python3 check_naming.py                # verifies the identifier mapping against baseline files
+```
+`data/`: newline-delimited JSON, one file per table. `schemas/`: explicit nested BigQuery schemas (no
+autodetection). `companion/`: transaction original currency, fictional fixed FX rates, and scenario ground
+truth — **not** loaded as extra AML tables. `reports/validation.json`: local validation result and expected
+counts/totals. `reference/`: the unchanged originally-supplied schema, the official input schema snapshot,
+and the original project KPI SQL.
 
 To restore ignored data files from a fresh checkout, run from the repository root:
 
@@ -158,8 +183,9 @@ validated SQL + violation list, returned to the caller
 │   ├── aml_data_model_schema.json  # Canonical AML input/output data model (legacy model path)
 │   └── aml_kpi_queries.sql         # Hand-written reference KPI queries against that schema
 ├── dataset/                   # Deployed BigQuery dataset: schema/enum metadata, generator, loading/migration
-│   ├── aml_data_model_schema.json  #   deployed schema + observed-value metadata (analytics_service's source)
-│   └── README.md               #   dataset documentation and reproducible loading instructions
+│   └── aml_data_model_schema.json  #   deployed schema + observed-value metadata (analytics_service's source)
+│                              #   dataset docs/loading are in the "BigQuery demo dataset" section above and
+│                              #   docs/ARCHITECTURE.md's "Dataset Design and Limitations"
 ├── analytics_service/          # The actual deployed product: role-based auth, BigQuery execution, dashboard UI
 │   ├── app.py                 #   FastAPI app (create_app factory) — mounted at /ui, deployed as aml-analytics-service
 │   ├── local.py                #   local dev launcher (starts app.py + analytics_service.app together)

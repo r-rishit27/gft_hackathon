@@ -197,6 +197,67 @@ Unit tests use explicit doubles/DuckDB fixtures, isolated from the live applicat
 - A project display name such as "Gemini API" does not establish a VPC Service Controls perimeter. Live IAM, billing, perimeter configuration and model endpoint residency were not verified during this architecture review.
 - Repository and local dataset artifacts were inspected. Cloud deployment status must be checked separately before implementation.
 
+## Dataset Design and Limitations
+
+Consolidated from `dataset/README.md` (now folded in here; see git history for the original file).
+
+**Construction.** 850 customers exist at the opening snapshot; 150 join during the period, yielding 1,000
+total. There are 100 address-history updates and 40 customer exits, producing 1,140 `Party` rows for those
+1,000 people. Each party has one primary account; transactions and interaction events occur only while that
+account is active. 90 customers carry synthetic activity scenarios (30 cash bursts, 30 rapid incoming/
+outgoing movements, 30 cross-border bursts), assigned independently of country, gender, nationality and
+occupation. There are 120 investigations (80 closed, 40 open), 45 SAR events, and 20 AML-related exits; the
+other 20 exits are ordinary customer departures. `CommercialPartiesRegistration` is intentionally empty —
+the agreed scope is retail-only.
+
+**Money, direction, and time.** All transaction amounts are positive USD-normalized money structs, cents
+included in `nanos`. `direction` represents inflow/outflow; summing both gives gross account turnover, not
+net flow. Counterparties are external fictional entities with null internal account IDs — no unpaired
+internal transfer is implied. Local currencies (HKD, GBP, INR, TWD, EUR, PLN) use explicitly fictional fixed
+conversion rates. Monthly risk scores and explanations are simulated for active customers; the metadata is
+illustrative, not measured model performance. Risk-period-end timestamps are exclusive next-month UTC
+boundaries — August's boundary is September 1.
+
+**Schema decisions.** The updated `aml_data_model_schema.json` retains the supplied input/output sections
+and relationships, and documents every deployed field, nested children, examples, row counts, entity-country
+mappings and omissions, using BigQuery's `fields` key for nested children (not the original incomplete
+`subfields` convention); `BOOL`/`INT64`/`FLOAT64` are aliases for BigQuery's `BOOLEAN`/`INTEGER`/`FLOAT`. The
+original supplied file is unchanged at `dataset/reference/project_schema.json`. Every field also carries
+`sql_type`, `nullable`, `allowed_enum_values`, `enum_source` and `observed_values` (including nested
+fields) — declared enums are kept distinct from merely observed categories; non-ID fields with up to 50
+distinct scalar values list complete values and frequencies, high-cardinality fields and identifiers get
+counts and samples (with ranges for numbers/dates), nulls are counted separately, and semantic categories
+like `risk_typology_id`/`party_supplementary_data_id` are enumerated. Google's official input JSON completes
+nested structures missing from the originally-supplied file. `Party.civil_status_code` is omitted pending
+confirmation (the supplied file's STRUCT conflicts with Google's STRING) — this field is optional. The
+supplied stricter `REQUIRED` modes for `AccountPartyLink.role` and `Transaction.normalized_booked_amount`
+are retained; all rows satisfy them.
+
+**Not yet a validated AML AI training dataset.** Eight months of data is insufficient for the full
+training/tuning workflow — Google recommends 36 months for a first sample test, with exact requirements
+depending on engine version and operation. AML AI service access, supported region, registration, engine
+choice, label coverage and sufficient historical data must all be verified separately before actual service
+use. BigQuery Sandbox tables expire under its retention policy; loading this dataset does not activate
+billing or AML AI.
+
+**KPI query pitfalls.** The project's original KPI SQL (preserved as reference in `dataset/reference/`, not
+changed or claimed to be fixed by this package) requires care: historical `Party` joins can duplicate
+results, the exit query joins all score periods, and summing `units` alone drops cents. Use an as-of `Party`
+record, select the latest score before exit, and add `nanos / 1e9` for monetary totals — the same
+`units + nanos / 1e9` convention used throughout this document.
+
+**Migration tooling.** `dataset/check_naming.py` verifies the identifier mapping and compares all
+non-naming values against baseline files. `dataset/migrate_identifiers.py` performs exact live-data
+preflight checks, dated backups, staged loading and verification, then table-copy replacement — preserving
+schemas and expiration settings, and supporting resume. It stops on any unexpected live contents; backups
+are retained under BigQuery Sandbox expiration, and no tables are deleted by this workflow.
+
+Sources:
+- https://docs.cloud.google.com/financial-services/anti-money-laundering/docs/reference/schemas/aml-input-data-model
+- https://docs.cloud.google.com/static/financial-services/anti-money-laundering/docs/reference/schemas/aml-input-data-model.json
+- https://docs.cloud.google.com/financial-services/anti-money-laundering/docs/reference/schemas/aml-output-data-model
+- https://docs.cloud.google.com/financial-services/anti-money-laundering/docs/understand-data-scope-duration
+
 ## Target Diagram
 
 All application components below are proposed unless identified as existing in the implementation inventory. The project box is an ownership boundary, NOT a claim of a configured security perimeter.

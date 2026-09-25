@@ -69,6 +69,8 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mannix/defog-llama3-sqlcoder-8b")
 MODEL_BACKEND = os.environ.get("MODEL_BACKEND", "ollama")
 SCHEMA_BACKEND = os.environ.get("SCHEMA_BACKEND", "auto")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_FALLBACK_MODEL = os.environ.get("OPENAI_FALLBACK_MODEL", "gpt-6-sol")
 
 # A shared, connection-pooling HTTP session for Ollama calls instead of a new
 # TCP/TLS handshake per request -- under concurrent requests this was adding
@@ -592,13 +594,35 @@ def generate_sql_ollama(prompt, system=None, model=None, host=None, max_retries=
     }
     if system:
         payload["system"] = system
+    try:
+        resp = _HTTP_SESSION.post(
+            f"{host}/api/generate",
+            json=payload,
+            timeout=int(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "240")),
+        )
+        resp.raise_for_status()
+        return _extract_sql(resp.json().get("response", ""))
+    except requests.RequestException:
+        if not OPENAI_API_KEY:
+            raise
+        return _generate_sql_openai(prompt, system)
+
+
+def _generate_sql_openai(prompt, system=None):
+    """Fallback path when Ollama (reached via the laptop's Cloudflare tunnel)
+    is unreachable, so the tunnel dying doesn't take query generation down
+    with it."""
+    messages = ([{"role": "system", "content": system}] if system else []) + [
+        {"role": "user", "content": prompt}
+    ]
     resp = _HTTP_SESSION.post(
-        f"{host}/api/generate",
-        json=payload,
-        timeout=int(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "240")),
+        "https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+        json={"model": OPENAI_FALLBACK_MODEL, "messages": messages, "temperature": 0},
+        timeout=int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "60")),
     )
     resp.raise_for_status()
-    return _extract_sql(resp.json().get("response", ""))
+    return _extract_sql(resp.json()["choices"][0]["message"]["content"])
 
 
 def load_model():

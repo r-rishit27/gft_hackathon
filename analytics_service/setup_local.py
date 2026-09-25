@@ -174,7 +174,7 @@ def main():
     grant(session, account_url, "roles/iam.serviceAccountTokenCreator", "user:" + identity["email"])
     token = secrets.token_urlsafe(40)
     config = {"query_mode": "freeform", "model_timeout_seconds": 240,
-              "maximum_bytes_billed": 100_000_000, "max_concurrent_queries": 1,
+              "maximum_bytes_billed": 100_000_000, "max_concurrent_queries": 6,
               "identities": [{"subject": identity["email"], "token_sha256": hashlib.sha256(token.encode()).hexdigest(), "scope": "demo"}],
               "scopes": {"demo": {"entities": sorted(ENTITIES), "service_account": ACCOUNT, "resources": resources}}}
     Settings.model_validate(config)

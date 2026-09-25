@@ -36,6 +36,7 @@ import json
 import os
 import re
 import sys
+import threading
 
 import requests
 from dotenv import load_dotenv
@@ -68,6 +69,18 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "mannix/defog-llama3-sqlcoder-8b")
 MODEL_BACKEND = os.environ.get("MODEL_BACKEND", "ollama")
 SCHEMA_BACKEND = os.environ.get("SCHEMA_BACKEND", "auto")
+
+# A shared, connection-pooling HTTP session for Ollama calls instead of a new
+# TCP/TLS handshake per request -- under concurrent requests this was adding
+# per-request latency for no benefit, since requests.Session's pool already
+# handles concurrent callers safely.
+_HTTP_SESSION = requests.Session()
+
+# The FalkorDB connection is likewise safe to share across concurrent
+# requests (redis-py pools its sockets internally) and expensive to open
+# fresh every call, so it's created once lazily and reused.
+_graph_cache = {}
+_graph_lock = threading.Lock()
 
 SYSTEM_PROMPT = (
     "You are an AML (anti-money-laundering) analyst and business leader who "
@@ -102,15 +115,24 @@ def connect_graph():
         return None
     if not FALKORDB_HOST:
         raise RuntimeError("FalkorDB credentials are missing; choose SCHEMA_BACKEND=catalog for schema-file retrieval")
-    db = FalkorDB(
-        host=FALKORDB_HOST,
-        port=FALKORDB_PORT,
-        username=FALKORDB_USERNAME,
-        password=FALKORDB_PASSWORD,
-        socket_connect_timeout=10,
-        socket_timeout=20,
-    )
-    return db.select_graph(FALKORDB_GRAPH)
+    cached = _graph_cache.get("graph")
+    if cached is not None:
+        return cached
+    with _graph_lock:
+        cached = _graph_cache.get("graph")
+        if cached is not None:
+            return cached
+        db = FalkorDB(
+            host=FALKORDB_HOST,
+            port=FALKORDB_PORT,
+            username=FALKORDB_USERNAME,
+            password=FALKORDB_PASSWORD,
+            socket_connect_timeout=10,
+            socket_timeout=20,
+        )
+        graph = db.select_graph(FALKORDB_GRAPH)
+        _graph_cache["graph"] = graph
+        return graph
 
 
 # ---------------------------------------------------------------------------
@@ -570,7 +592,7 @@ def generate_sql_ollama(prompt, system=None, model=None, host=None, max_retries=
     }
     if system:
         payload["system"] = system
-    resp = requests.post(
+    resp = _HTTP_SESSION.post(
         f"{host}/api/generate",
         json=payload,
         timeout=int(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "240")),
@@ -590,7 +612,7 @@ def load_model():
     if MODEL_BACKEND != "ollama":
         raise RuntimeError("This integration requires MODEL_BACKEND=ollama")
     try:
-        tags = requests.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
+        tags = _HTTP_SESSION.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
         tags.raise_for_status()
         names = {m.get("name") for m in tags.json().get("models", [])}
         if not any(n in {OLLAMA_MODEL, OLLAMA_MODEL + ":latest"} for n in names):

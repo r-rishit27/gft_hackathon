@@ -65,7 +65,7 @@ class Settings(StrictModel):
     scopes: dict[str, Scope] = Field(min_length=1)
     identities: list[Identity] = Field(min_length=1)
     requests_per_minute: int = Field(default=10, ge=1, le=60)
-    max_concurrent_queries: int = Field(default=2, ge=1, le=10)
+    max_concurrent_queries: int = Field(default=6, ge=1, le=20)
     history_path: str = ":memory:"
 
     @model_validator(mode="after")

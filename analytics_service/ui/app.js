@@ -71,6 +71,29 @@ function renderTable() {
 }
 $("previous-page").addEventListener("click", () => { if (page > 0) { page--; renderTable(); } });
 $("next-page").addEventListener("click", () => { if (currentResult && (page + 1) * PAGE_SIZE < currentResult.rows.length) { page++; renderTable(); } });
+function csvCell(value) {
+  if (value == null) return "";
+  const text = typeof value === "object" ? JSON.stringify(value) : String(value);
+  return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+function buildCsv(result) {
+  const lines = [result.columns.map((column) => csvCell(column.name)).join(",")];
+  for (const row of result.rows) lines.push(result.columns.map((column) => csvCell(row[column.name])).join(","));
+  return lines.join("\r\n");
+}
+$("export-csv").addEventListener("click", () => {
+  if (!currentResult || !currentResult.rows.length) return;
+  const blob = new Blob([buildCsv(currentResult)], {type: "text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const stamp = new Date().toISOString().slice(0, 19).replaceAll(/[-:T]/g, "").replace(/(\d{8})(\d{6})/, "$1-$2");
+  link.href = url;
+  link.download = `aml-analytics-${stamp}.csv`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+});
 const element = (tag, text, className) => {
   const node = document.createElement(tag);
   if (text !== undefined) node.textContent = text;
@@ -325,6 +348,7 @@ function render(result) {
   $("columns").replaceChildren(header);
   renderTable();
   $("row-count").textContent = `${result.rows.length.toLocaleString()} result${result.rows.length === 1 ? "" : "s"}${result.truncated ? " · incomplete" : ""}`;
+  $("export-csv").disabled = !result.rows.length;
   $("overview-tab").hidden = !result.dashboard.charts.length || result.truncated;
   setView($("overview-tab").hidden ? "table" : "overview");
   $("sql").textContent = result.sql;

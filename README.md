@@ -6,9 +6,9 @@ dataset through a separate read-only analytics service. The original SQL-only en
 
 ## Local live-data integration
 
-Use [the local integration guide](analytics_service/README.md) for Ollama setup, Google login,
-approved read-only access provisioning and the free-form results dashboard. The requested model is
-`mannix/defog-llama3-sqlcoder-8b`. No mock-data fallback is used by the live path.
+Use [`docs/ARCHITECTURE.md`'s "analytics_service in Detail"](docs/ARCHITECTURE.md#analytics_service-in-detail)
+for Ollama setup, Google login, approved read-only access provisioning and the free-form results dashboard.
+The requested model is `mannix/defog-llama3-sqlcoder-8b`. No mock-data fallback is used by the live path.
 
 See [`docs/TEST_REPORT.md`](docs/TEST_REPORT.md) for detailed evaluation results and known limitations,
 and [Deployment](#deployment) below for the current public PoC instances.
@@ -70,7 +70,7 @@ demo, and it inherits every limitation that implies:
 - **Two local-only secret files never leave this laptop by design:** `analytics_service/config.roles.local.json`
   (uploaded to Render as a secret file, not committed) and `profile-logins.local.json` (plaintext
   reference passwords for the three demo logins — read by *you*, never by the running server; see
-  `analytics_service/README.md`).
+  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#analytics_service-in-detail)).
 
 Redeploying either Render service (after a code change, a new Cloudflare tunnel URL, etc.) is done via the
 [Render CLI](https://render.com/docs/cli) rather than a `render.yaml` Blueprint import, since Render's
@@ -155,8 +155,9 @@ validated SQL + violation list, returned to the caller
 ├── analytics_service/          # The actual deployed product: role-based auth, BigQuery execution, dashboard UI
 │   ├── app.py                 #   FastAPI app (create_app factory) — mounted at /ui, deployed as aml-analytics-service
 │   ├── local.py                #   local dev launcher (starts app.py + analytics_service.app together)
-│   ├── render_start.py         #   (unused by the current split deployment; see README §Deployment)
-│   └── README.md               #   role/login setup, IAM provisioning, session/history details
+│   └── render_start.py         #   (unused by the current split deployment; see README §Deployment)
+│                              #   role/login setup, IAM provisioning, session/history details are documented
+│                              #   in docs/ARCHITECTURE.md's "analytics_service in Detail" section
 ├── eval/
 │   ├── evaluate_text2sql.py   # Evaluation harness — runs the pipeline against a test file, scores it
 │   ├── eval_testcases.json    #   exemplar bank (also used at runtime for exemplar retrieval)
@@ -212,9 +213,10 @@ validated SQL + violation list, returned to the caller
 ## Running
 
 **Full product, locally** (model service + role-based dashboard together): see
-[`analytics_service/README.md`](analytics_service/README.md) — `python -m analytics_service.local --port 8012`
-starts both and prints the login URL. This is the same pair of processes as the deployed
-`aml-model-backend` / `aml-analytics-service` split, just running as one local launcher.
+[`docs/ARCHITECTURE.md`'s "analytics_service in Detail"](docs/ARCHITECTURE.md#analytics_service-in-detail) —
+`python -m analytics_service.local --port 8012` starts both and prints the login URL. This is the same pair
+of processes as the deployed `aml-model-backend` / `aml-analytics-service` split, just running as one local
+launcher.
 
 **Model-service API alone** (from the project root):
 ```

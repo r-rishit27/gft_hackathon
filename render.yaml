@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: aml-kpi-copilot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: FALKORDB_HOST
+        sync: false
+      - key: FALKORDB_PORT
+        sync: false
+      - key: FALKORDB_USERNAME
+        sync: false
+      - key: FALKORDB_PASSWORD
+        sync: false
+      - key: FALKORDB_GRAPH
+        value: aml_data_model
+      - key: HF_TOKEN
+        sync: false
+      - key: SCHEMA_BACKEND
+        value: falkordb
+      - key: OLLAMA_HOST
+        sync: false
+      - key: OLLAMA_MODEL
+        value: mannix/defog-llama3-sqlcoder-8b

@@ -9,12 +9,26 @@ either died or was never updated after a restart.
 
 This script removes the manual step: it supervises cloudflared, health-checks
 the tunnel on a short interval, restarts it when the check fails, and -- only
-when the public URL actually changes -- pushes the new value to
-aml-model-backend's OLLAMA_HOST via Render's REST API and restarts that
-service so it picks the change up. No Render dashboard visits, no CLI
-service-recreate cycle.
+when the public URL actually changes -- publishes the new value two ways:
 
-Requires: a Render API key. Reads one of, in order:
+  1. Commits and pushes it to ops/current_ollama_host.txt. aml-model-backend
+     polls this file every ~20s (OLLAMA_HOST_REFRESH_URL) and swaps the URL
+     it's using in place, with NO restart needed. This is the mechanism that
+     actually matters: a plain env-var PUT only gets applied on a full
+     redeploy, and a redeploy is itself a real ~2-3 minute outage window
+     (the whole process, including the OpenAI fallback, is down while it
+     restarts) -- confirmed directly from Render's deploy history repeatedly
+     redeploying every 5-13 minutes before this existed, each one a genuine
+     "Service unavailable" window despite the fallback being configured
+     correctly. Polling instead of redeploying means tunnel rotation no
+     longer touches the running process's availability at all.
+  2. PUTs OLLAMA_HOST on Render too, purely as a visible baseline value in
+     the dashboard / for a deploy triggered for unrelated reasons -- not the
+     primary update path, and deliberately does NOT trigger a deploy anymore.
+
+Requires: a Render API key (for step 2) and git push access to this repo
+(for step 1, already configured on this machine). Reads the Render key from
+one of, in order:
   1. RENDER_API_KEY environment variable
   2. The key already stored by `render login` in ~/.render/cli.yaml (Windows:
      %USERPROFILE%\\.render\\cli.yaml) -- present on this machine already.
@@ -57,29 +71,41 @@ def render_headers():
     return {"Authorization": f"Bearer {render_api_key()}", "Content-Type": "application/json"}
 
 
-def update_ollama_host(new_url):
-    """PUTs the new OLLAMA_HOST value, then triggers a new deploy so the
-    running process (which only reads env vars at import time) picks it up.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+TRACKED_HOST_FILE = REPO_ROOT / "ops" / "current_ollama_host.txt"
 
-    A plain restart (POST .../restart) is NOT enough here -- confirmed by a
-    real failure: it reuses the environment snapshot from the *last deploy*,
-    not the value just PUT, so the app boots against the old (dead) tunnel
-    URL. Worse, app.py's lifespan raises if Ollama is unreachable at
-    startup, which crashes the whole process rather than just marking it
-    not-ready -- so a stale restart doesn't just fail to help, it takes the
-    service down harder than before. A full deploy (slower: re-runs the
-    no-cache pip install, ~60-90s) is what actually applies a new env var."""
+
+def push_tracked_host_file(new_url):
+    """Commits and pushes the new URL to ops/current_ollama_host.txt -- the
+    primary update path; see module docstring. Non-fatal on failure (e.g. a
+    transient network blip, or another push racing this one) since the
+    Render env var and the OpenAI fallback both still work as a safety net;
+    it'll simply retry on the next tunnel rotation."""
+    TRACKED_HOST_FILE.write_text(new_url + "\n", encoding="utf-8")
+    try:
+        subprocess.run(["git", "add", "ops/current_ollama_host.txt"], check=True, cwd=REPO_ROOT)
+        subprocess.run(
+            ["git", "commit", "-m", f"Automated: update current Ollama tunnel URL to {new_url}"],
+            check=True, cwd=REPO_ROOT,
+        )
+        subprocess.run(["git", "push", "origin", "main"], check=True, cwd=REPO_ROOT)
+        return True
+    except subprocess.CalledProcessError as exc:
+        print(f"[watchdog] git push of the tracked host file failed (will retry next rotation): {exc}", flush=True)
+        return False
+
+
+def update_ollama_host(new_url):
+    pushed = push_tracked_host_file(new_url)
     resp = requests.put(
         f"{RENDER_API_BASE}/services/{RENDER_SERVICE_ID}/env-vars/OLLAMA_HOST",
         headers=render_headers(), json={"value": new_url}, timeout=30,
     )
     resp.raise_for_status()
-    resp = requests.post(
-        f"{RENDER_API_BASE}/services/{RENDER_SERVICE_ID}/deploys",
-        headers=render_headers(), timeout=30,
-    )
-    resp.raise_for_status()
-    print(f"[watchdog] Updated OLLAMA_HOST -> {new_url} and triggered a new deploy of aml-model-backend", flush=True)
+    if pushed:
+        print(f"[watchdog] Pushed new Ollama tunnel URL -> {new_url} (aml-model-backend picks it up via poll, no redeploy needed)", flush=True)
+    else:
+        print(f"[watchdog] Set OLLAMA_HOST env var -> {new_url}, but the git push failed -- aml-model-backend won't see this until that succeeds or a deploy happens for another reason.", flush=True)
 
 
 def start_tunnel():

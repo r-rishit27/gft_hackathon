@@ -37,6 +37,7 @@ import os
 import re
 import sys
 import threading
+import time
 
 import requests
 from dotenv import load_dotenv
@@ -71,6 +72,48 @@ MODEL_BACKEND = os.environ.get("MODEL_BACKEND", "ollama")
 SCHEMA_BACKEND = os.environ.get("SCHEMA_BACKEND", "auto")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_FALLBACK_MODEL = os.environ.get("OPENAI_FALLBACK_MODEL", "gpt-6-sol")
+
+# A deployed Ollama tunnel rotates its public URL every time it restarts, and
+# a plain env var only gets picked up on a full redeploy -- which is itself a
+# real ~2-3 minute outage window (the whole process, fallback included, is
+# down while it restarts). So tunnel rotation no longer touches OLLAMA_HOST
+# as a static env var at all: instead this process polls a small public URL
+# (OLLAMA_HOST_REFRESH_URL, typically a raw GitHub file the local watchdog
+# pushes to on every rotation) on a timer and swaps the in-memory value with
+# no restart needed. Left empty (the default), this is a no-op and OLLAMA_HOST
+# behaves exactly as a normal static env var.
+OLLAMA_HOST_REFRESH_URL = os.environ.get("OLLAMA_HOST_REFRESH_URL", "")
+OLLAMA_HOST_REFRESH_INTERVAL_SECONDS = int(os.environ.get("OLLAMA_HOST_REFRESH_INTERVAL_SECONDS", "20"))
+_dynamic_ollama_host_lock = threading.Lock()
+_dynamic_ollama_host = {"url": OLLAMA_HOST}
+
+
+def current_ollama_host():
+    with _dynamic_ollama_host_lock:
+        return _dynamic_ollama_host["url"]
+
+
+def _refresh_ollama_host_loop():
+    while True:
+        try:
+            resp = requests.get(f"{OLLAMA_HOST_REFRESH_URL}?v={int(time.time())}", timeout=10)
+            if resp.status_code == 200:
+                url = resp.text.strip()
+                if url.startswith("https://") or url.startswith("http://"):
+                    with _dynamic_ollama_host_lock:
+                        if _dynamic_ollama_host["url"] != url:
+                            print(f"[ollama-host-refresh] switching OLLAMA_HOST -> {url}", flush=True)
+                        _dynamic_ollama_host["url"] = url
+        except requests.RequestException:
+            pass  # keep using the last known-good value; a transient fetch failure isn't a reason to stop serving
+        time.sleep(OLLAMA_HOST_REFRESH_INTERVAL_SECONDS)
+
+
+def start_ollama_host_refresher():
+    """Call once at process startup. No-op unless OLLAMA_HOST_REFRESH_URL is set."""
+    if OLLAMA_HOST_REFRESH_URL:
+        threading.Thread(target=_refresh_ollama_host_loop, daemon=True).start()
+
 
 # A shared, connection-pooling HTTP session for Ollama calls instead of a new
 # TCP/TLS handshake per request -- under concurrent requests this was adding
@@ -583,7 +626,7 @@ def generate_sql_ollama(prompt, system=None, model=None, host=None, max_retries=
     role, so the business-analyst/read-only-SQL persona in SYSTEM_PROMPT can
     genuinely shape its behavior here, not just document intent."""
     model = model or OLLAMA_MODEL
-    host = host or OLLAMA_HOST
+    host = host or current_ollama_host()
     payload = {
         "model": model,
         "prompt": prompt,
@@ -635,15 +678,16 @@ def load_model():
     internals."""
     if MODEL_BACKEND != "ollama":
         raise RuntimeError("This integration requires MODEL_BACKEND=ollama")
+    host = current_ollama_host()
     try:
-        tags = _HTTP_SESSION.get(f"{OLLAMA_HOST}/api/tags", timeout=5)
+        tags = _HTTP_SESSION.get(f"{host}/api/tags", timeout=5)
         tags.raise_for_status()
         names = {m.get("name") for m in tags.json().get("models", [])}
         if not any(n in {OLLAMA_MODEL, OLLAMA_MODEL + ":latest"} for n in names):
             raise RuntimeError(f"Required model is not installed. Run ollama pull {OLLAMA_MODEL}")
     except requests.RequestException as exc:
         raise RuntimeError(
-            f"Ollama server not reachable at {OLLAMA_HOST}. Start it (the Ollama app, or "
+            f"Ollama server not reachable at {host}. Start it (the Ollama app, or "
             f"`ollama serve`) and ensure `{OLLAMA_MODEL}` is pulled "
             f"(`ollama pull {OLLAMA_MODEL}`)."
         ) from exc

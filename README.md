@@ -121,18 +121,24 @@ real product surface — see git history if you need that code back).
 Secret Manager, no VPC-SC perimeter, no structured audit log) — it's the fastest path to a working public
 demo, and it inherits every limitation that implies:
 
-- **The Ollama tunnel is still a laptop dependency, but no longer a manual one.** Cloudflare's free "quick
-  tunnels" are inherently ephemeral — the process can keep running while its edge connection silently
-  drops, and every restart gets a brand-new random hostname, which used to mean redeploying
-  `aml-model-backend` by hand each time it happened. `ops/ollama_tunnel_watchdog.py` now supervises this
-  end to end: it health-checks the tunnel every 30s, restarts `cloudflared` when it fails, and — only when
-  the public URL actually changes — pushes the new value to `aml-model-backend`'s `OLLAMA_HOST` via
-  Render's REST API and triggers a fresh deploy of that service (a plain restart doesn't pick up a
-  changed env var), fully automatically. Run it once and leave it running
-  (`python ops/ollama_tunnel_watchdog.py`, needs `pip install -r ops/requirements.txt` and a Render API key
-  — either `RENDER_API_KEY` in the environment, or the one `render login` already stored in
-  `~/.render/cli.yaml`). What this *doesn't* fix: if the laptop itself sleeps, loses network entirely, or
-  Ollama stops running, there's no tunnel to heal — see "Move Ollama off this laptop entirely" as the only
+- **The Ollama tunnel is still a laptop dependency, but rotating it no longer causes an outage.** Cloudflare's
+  free "quick tunnels" are inherently ephemeral — the process can keep running while its edge connection
+  silently drops, and every restart gets a brand-new random hostname. That used to mean redeploying
+  `aml-model-backend` by hand (or, once automated, the watchdog redeploying it automatically) — and a
+  redeploy is itself a real ~2-3 minute outage window, since the *whole* process restarts, taking the
+  fallback model down with it. Render's deploy history showed this redeploying every 5-13 minutes at one
+  point, each one a genuine "Service unavailable" window despite the fallback being configured correctly.
+  `ops/ollama_tunnel_watchdog.py` now decouples tunnel rotation from deploys entirely: on a URL change, it
+  commits the new value to `ops/current_ollama_host.txt` and pushes to GitHub, and `aml-model-backend`
+  polls that file every ~20s (`OLLAMA_HOST_REFRESH_URL`) and swaps the URL it's using in place — no restart,
+  no redeploy, no downtime. It also health-checks the tunnel every 30s and only actually restarts
+  `cloudflared` after 3 consecutive failed checks (polling every 10s while degraded), since a single slow
+  response from Cloudflare's free edge was, on its own, enough to trigger unnecessary churn. Run it once and
+  leave it running (`python ops/ollama_tunnel_watchdog.py`, needs `pip install -r ops/requirements.txt`, git
+  push access to this repo, and a Render API key — either `RENDER_API_KEY` in the environment, or the one
+  `render login` already stored in `~/.render/cli.yaml`). What this *doesn't* fix: if the laptop itself
+  sleeps, loses network entirely, or Ollama stops running, there's no tunnel to heal — the fallback model
+  covers that case instead (see below) — and see "Move Ollama off this laptop entirely" as the only
   way to remove that dependency completely.
 - **`analytics_service` no longer serializes almost all traffic behind one query at a time.** Its `/query`
   endpoint is gated by a `BoundedSemaphore` (`max_concurrent_queries`), which used to default to 1 locally

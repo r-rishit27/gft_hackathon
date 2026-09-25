@@ -29,6 +29,11 @@ app_state = {"ollama_ready": False}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Starts a no-op-unless-configured background poll for the current
+    # Ollama tunnel URL, so a tunnel rotation updates this running process
+    # in place (no redeploy needed) instead of requiring a restart -- see
+    # OLLAMA_HOST_REFRESH_URL in pipeline/text2sql_falkordb.py.
+    pipeline.start_ollama_host_refresher()
     # Verify the Ollama server is reachable once at startup instead of
     # failing opaquely on the first request. Deliberately does NOT let a
     # failure here crash the whole process: Ollama (reached via a tunnel to

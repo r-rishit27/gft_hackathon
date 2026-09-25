@@ -132,6 +132,26 @@ demo, and it inherits every limitation that implies:
   `~/.render/cli.yaml`). What this *doesn't* fix: if the laptop itself sleeps, loses network entirely, or
   Ollama stops running, there's no tunnel to heal — see "Move Ollama off this laptop entirely" as the only
   way to remove that dependency completely.
+- **`analytics_service` no longer serializes almost all traffic behind one query at a time.** Its `/query`
+  endpoint is gated by a `BoundedSemaphore` (`max_concurrent_queries`), which used to default to 1 locally
+  and 2 in prod — every simultaneous user beyond that got rejected outright with a 429 ("Query capacity is
+  busy") rather than running concurrently, which is what made the whole app feel single-user and slow.
+  Raised to 6 (cap 20) in `analytics_service/config.py`, `setup_local.py`, the local
+  `config.roles.local.json`, and the deployed `aml-analytics-service`'s Render secret file. Separately,
+  `pipeline/text2sql_falkordb.py` was opening a brand-new HTTP connection to Ollama and a brand-new
+  FalkorDB connection on every single request instead of reusing one — pure fixed per-request latency with
+  no benefit — so both now reuse a shared, thread-safe connection (`requests.Session`, a lazily-created
+  graph singleton) across requests.
+- **Ollama serves multiple requests concurrently, not one at a time.** By default Ollama processes one
+  generate call at a time per model, which serialized every concurrent user behind whichever query
+  happened to start first. `OLLAMA_NUM_PARALLEL=2` (and `OLLAMA_MAX_LOADED_MODELS=1`, to keep memory bounded
+  on a 16GB laptop) is now set as a persistent Windows user environment variable, so two questions can
+  generate SQL at the same time instead of queueing — verified by firing two `/generate-sql` calls at once
+  and confirming they finish within seconds of each other instead of back-to-back. This only takes effect
+  for an Ollama process launched *after* the env var was set: either `ollama serve` run directly, or the
+  tray app (`ollama app.exe`) after a fresh login/reboot. Raising it further trades memory for more
+  concurrency — each parallel slot needs its own KV cache sized by `OLLAMA_NUM_CTX` — so don't raise it
+  without headroom to spare.
 - **Free tier means cold starts and tight memory.** Each service spins down after inactivity and takes
   tens of seconds to cold-start on the next request. The two services were deliberately split into
   separate Render instances (rather than one instance running both processes) after the combined version

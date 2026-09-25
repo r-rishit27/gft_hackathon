@@ -113,15 +113,25 @@ real product surface — see git history if you need that code back).
 | --- | --- | --- |
 | [`aml-analytics-service`](https://aml-analytics-service.onrender.com) | Render (free tier) | The deployed product: `analytics_service`'s role-based login, BigQuery-backed dashboard, and query history. Sign in at `/login`. |
 | `aml-model-backend` | Render (free tier) | `app.py` alone — an internal-only `POST /generate-sql` API with no UI. `aml-analytics-service` calls it over HTTPS; nothing else should depend on it directly. |
-| Ollama / SQLCoder | This laptop, via a Cloudflare quick tunnel | Both Render services reach `mannix/defog-llama3-sqlcoder-8b` through a `cloudflared tunnel --url http://localhost:11434 --http-host-header localhost:11434` tunnel to Ollama running locally, not a cloud-hosted model. |
+| Ollama / SQLCoder | This laptop, via a self-healing Cloudflare quick tunnel | Both Render services reach `mannix/defog-llama3-sqlcoder-8b` through a `cloudflared` tunnel to Ollama running locally, not a cloud-hosted model. `ops/ollama_tunnel_watchdog.py` keeps it alive — see below. |
 
 **This is deliberately not the governed architecture `docs/ARCHITECTURE.md` describes** (no Cloud Run, no
 Secret Manager, no VPC-SC perimeter, no structured audit log) — it's the fastest path to a working public
 demo, and it inherits every limitation that implies:
 
-- **The Ollama tunnel is the weak link.** If this laptop sleeps, loses network, or the `cloudflared`
-  process dies, SQL generation stops working on both Render services (their own `/health`/`/login` pages
-  stay up, but any real query fails). There is no auto-restart or monitoring on the tunnel.
+- **The Ollama tunnel is still a laptop dependency, but no longer a manual one.** Cloudflare's free "quick
+  tunnels" are inherently ephemeral — the process can keep running while its edge connection silently
+  drops, and every restart gets a brand-new random hostname, which used to mean redeploying
+  `aml-model-backend` by hand each time it happened. `ops/ollama_tunnel_watchdog.py` now supervises this
+  end to end: it health-checks the tunnel every 30s, restarts `cloudflared` when it fails, and — only when
+  the public URL actually changes — pushes the new value to `aml-model-backend`'s `OLLAMA_HOST` via
+  Render's REST API and triggers a fresh deploy of that service (a plain restart doesn't pick up a
+  changed env var), fully automatically. Run it once and leave it running
+  (`python ops/ollama_tunnel_watchdog.py`, needs `pip install -r ops/requirements.txt` and a Render API key
+  — either `RENDER_API_KEY` in the environment, or the one `render login` already stored in
+  `~/.render/cli.yaml`). What this *doesn't* fix: if the laptop itself sleeps, loses network entirely, or
+  Ollama stops running, there's no tunnel to heal — see "Move Ollama off this laptop entirely" as the only
+  way to remove that dependency completely.
 - **Free tier means cold starts and tight memory.** Each service spins down after inactivity and takes
   tens of seconds to cold-start on the next request. The two services were deliberately split into
   separate Render instances (rather than one instance running both processes) after the combined version

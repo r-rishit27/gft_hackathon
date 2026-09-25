@@ -30,9 +30,20 @@ app_state = {"ollama_ready": False}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Verify the Ollama server is reachable once at startup instead of
-    # failing opaquely on the first request.
-    pipeline.load_model()
-    app_state["ollama_ready"] = True
+    # failing opaquely on the first request. Deliberately does NOT let a
+    # failure here crash the whole process: Ollama (reached via a tunnel to
+    # a locally-run instance) can be transiently unreachable right at boot
+    # -- e.g. mid-restart, or the tunnel's DNS hasn't propagated yet -- and
+    # /health already re-checks readiness on every call via the same
+    # pipeline.load_model(), so staying up and reporting not-ready is
+    # strictly better than crash-looping until the exact moment Ollama
+    # happens to be reachable during startup.
+    try:
+        pipeline.load_model()
+        app_state["ollama_ready"] = True
+    except Exception as exc:  # noqa: BLE001 - startup readiness probe, not fatal
+        print(f"WARNING: Ollama not reachable at startup ({exc}); will retry on /health.")
+        app_state["ollama_ready"] = False
     yield
     app_state["ollama_ready"] = False
 

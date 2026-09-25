@@ -4,6 +4,9 @@ A text-to-SQL pipeline for AML (anti-money-laundering) KPI reporting: ask a ques
 generate SQL grounded in the deployed schema, validate it independently, and query the synthetic BigQuery
 dataset through a separate read-only analytics service. The original SQL-only endpoint remains available.
 
+**Live application:** [aml-analytics-service.onrender.com/login](https://aml-analytics-service.onrender.com/login)
+— see [Deployment](#deployment) below for what's actually running there and its caveats before relying on it.
+
 ## Local live-data integration
 
 Use [`docs/ARCHITECTURE.md`'s "analytics_service in Detail"](docs/ARCHITECTURE.md#analytics_service-in-detail)
@@ -113,7 +116,12 @@ validated SQL + violation list, returned to the caller
   fields; a fixed prompt schema would either omit relevant tables or bloat the model's input on every
   question. Retrieval blends lexical overlap (exact identifier/enum-value hits) with semantic similarity
   (so "customers" still finds `Party`, "SAR" still finds `RiskCaseEvent` via its `type` enum) and expands
-  one hop across foreign keys so joinable tables aren't dropped.
+  one hop across foreign keys so joinable tables aren't dropped. This "FalkorDB knowledge graph" is a real
+  graph database (Redis-protocol, Cypher queries), not a relational schema dump — `Table`/`Field`/`Dataset`/
+  `MetadataMetric` nodes connected by `HAS_FIELD`/`HAS_TABLE`/`HAS_SUBFIELD`/`REFERENCES`/`LINKS_TO`/
+  `CATALOGUES` edges, queried directly by `pipeline/text2sql_falkordb.py`'s retrieval step:
+
+  ![FalkorDB knowledge graph: Table, Field, Dataset and MetadataMetric nodes connected by HAS_FIELD, HAS_TABLE, HAS_SUBFIELD, REFERENCES, LINKS_TO and CATALOGUES edges](docs/images/falkordb-knowledge-graph.png)
 - **SQLCoder, not a fine-tuned model.** `mannix/defog-llama3-sqlcoder-8b` runs locally via Ollama and
   needs no fine-tuning. It's instruction-following, so it actually attends to the system prompt's
   read-only/schema-adherence rules. Run deterministically (temperature 0, fixed seed) for reproducible

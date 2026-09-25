@@ -22,67 +22,113 @@ This deployment does not implement §"Country and Row-Level Isolation"'s per-req
 
 ```mermaid
 flowchart TD
-    Analyst((Analyst))
 
-    subgraph AS[Analytics service]
-        UI[Dashboard UI<br/>app.js]
-        API[Analytics API<br/>app.py]
-        AUTHN[Login and roles<br/>password_auth.py]
-        MC[Model client<br/>model_client.py]
-        POLICY[Query policy<br/>validator.py]
-        BQX[BigQuery executor<br/>bigquery_client.py]
-        DASH[Results dashboard<br/>dashboard.py]
-    end
+subgraph group_experience["User experience"]
+  node_ui["Dashboard UI<br/>[app.js]"]
+  node_workspace[("Query workspace<br/>[workspace.py]")]
+  node_results["Results dashboard<br/>[app.js]"]
+end
 
-    subgraph US[User state]
-        WS[(Saved questions and history<br/>workspace.py)]
-    end
+subgraph group_access["Identity and policy"]
+  node_service["Analytics API<br/>[app.py]"]
+  node_auth["Login sessions<br/>[password_auth.py]"]
+  node_scope["Access scopes<br/>[config.py]"]
+  node_intent["Access intent<br/>[access_intent.py]"]
+end
 
-    subgraph SG[SQL generation]
-        MAPI[SQL model API<br/>app.py]
-        GEN[Generation pipeline]
-        RETR[Schema retrieval]
-        EXM[Exemplar matching]
-        SQC[Ollama SQLCoder]
-        REP[SQL repair]
-        VAL[Schema validation]
-        SEM[Semantic search<br/>semantic_search.py]
-    end
+subgraph group_generation["SQL generation"]
+  node_modelclient["Model client<br/>[model_client.py]"]
+  node_modelapi["SQL API<br/>[app.py]"]
+  node_pipeline["Text-to-SQL"]
+  node_retrieval["Schema retrieval"]
+  node_exemplars["Verified exemplars"]
+  node_semantic["Semantic search<br/>[semantic_search.py]"]
+  node_knowledge[("FalkorDB<br/>graph database")]
+  node_repair["Schema repair"]
+  node_screen["Model validation<br/>[bigquery_schema.py]"]
+end
 
-    subgraph DATA[AML data]
-        FDB[(FalkorDB graph)]
-        META[(AML schema metadata)]
-        BQ[(BigQuery dataset)]
-    end
+subgraph group_execution["Query execution"]
+  node_catalog["Approved catalog<br/>[catalog.py]"]
+  node_validator["Execution validator<br/>[validator.py]"]
+  node_executor["BigQuery executor<br/>[bigquery_client.py]"]
+end
 
-    Analyst -->|asks question| UI
-    UI -->|submits query| API
-    API -->|returns results| UI
-    UI -->|shows results| Analyst
-    UI -->|reads and updates| WS
+node_analyst(("Analyst"))
+node_ollama["Ollama SQLCoder"]
+node_bigquery[("BigQuery")]
 
-    API -->|authenticates| AUTHN
-    API -->|requests SQL| MC
-    MC -->|returns SQL| API
-    API -->|checks scope| POLICY
-    API -->|executes approved SQL| BQX
-    API -->|formats results| DASH
+node_analyst -->|"asks question"| node_ui
+node_ui -->|"submits query"| node_service
+node_service -->|"authenticates"| node_auth
+node_service -->|"resolves scope"| node_scope
+node_service -->|"manages history"| node_workspace
+node_service -->|"checks intent"| node_intent
+node_service -->|"requests SQL"| node_modelclient
+node_modelclient -->|"sends question"| node_modelapi
+node_modelapi -->|"generates SQL"| node_pipeline
+node_pipeline -->|"checks matches"| node_exemplars
+node_pipeline -->|"retrieves schema"| node_retrieval
+node_retrieval -->|"searches graph"| node_knowledge
+node_retrieval -->|"scores similarity"| node_semantic
+node_pipeline -->|"generates candidate"| node_ollama
+node_pipeline -->|"repairs SQL"| node_repair
+node_pipeline -->|"validates schema"| node_screen
+node_modelclient -->|"returns SQL"| node_service
+node_service -->|"loads metadata"| node_catalog
+node_service -->|"approves query"| node_validator
+node_service -->|"executes approved query"| node_executor
+node_executor -->|"runs read-only query"| node_bigquery
+node_executor -->|"returns rows"| node_service
+node_service -->|"returns result"| node_ui
+node_ui -->|"renders results"| node_results
+node_results -->|"presents analysis"| node_analyst
 
-    MC -->|sends question| MAPI
-    MAPI -->|dispatches generation| GEN
-    GEN -->|retrieves context| RETR
-    GEN -->|checks matches| EXM
-    GEN -->|generates SQL| SQC
-    GEN -->|repairs candidate| REP
-    GEN -->|validates SQL| VAL
+click node_ui "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/ui/app.js"
+click node_service "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/app.py"
+click node_auth "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/password_auth.py"
+click node_scope "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/config.py"
+click node_intent "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/access_intent.py"
+click node_workspace "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/workspace.py"
+click node_modelclient "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/model_client.py"
+click node_modelapi "https://github.com/r-rishit27/gft_hackathon/blob/main/app.py"
+click node_pipeline "https://github.com/r-rishit27/gft_hackathon/blob/main/pipeline/text2sql_falkordb.py"
+click node_retrieval "https://github.com/r-rishit27/gft_hackathon/blob/main/pipeline/text2sql_falkordb.py"
+click node_exemplars "https://github.com/r-rishit27/gft_hackathon/blob/main/pipeline/text2sql_falkordb.py"
+click node_semantic "https://github.com/r-rishit27/gft_hackathon/blob/main/pipeline/semantic_search.py"
+click node_knowledge "https://github.com/r-rishit27/gft_hackathon/blob/main/graph/build_falkordb_graph.py"
+click node_repair "https://github.com/r-rishit27/gft_hackathon/blob/main/pipeline/text2sql_falkordb.py"
+click node_screen "https://github.com/r-rishit27/gft_hackathon/blob/main/pipeline/bigquery_schema.py"
+click node_catalog "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/catalog.py"
+click node_validator "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/validator.py"
+click node_executor "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/bigquery_client.py"
+click node_results "https://github.com/r-rishit27/gft_hackathon/blob/main/analytics_service/ui/app.js"
 
-    RETR -->|scores similarity| SEM
-    RETR -->|searches schema| FDB
-    VAL -->|checks against| META
-    BQX -->|queries| BQ
+classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
+class node_ui,node_workspace,node_results toneBlue
+class node_service,node_auth,node_scope,node_intent,node_bigquery toneAmber
+class node_modelclient,node_modelapi,node_pipeline,node_retrieval,node_exemplars,node_semantic,node_knowledge,node_repair,node_screen toneMint
+class node_catalog,node_validator,node_executor toneRose
+class node_analyst,node_ollama toneIndigo
 ```
 
-Two processes, one request path: `app.py` (top right, "SQL model API") is the same model service documented throughout this file and deployed as `aml-model-backend`; `analytics_service.app` (top left, "Analytics API") is deployed as `aml-analytics-service` and is the only component a browser talks to directly. `model_client.py` calls the model service exactly like any other HTTP client would — over `model_url`, never in-process — so the two can run as separate Render services (the deployed split) or as sibling processes on one machine (`analytics_service.local`, loopback only) without any code change.
+`node_service` (Analytics API, `analytics_service/app.py`) is deployed as `aml-analytics-service` and is the only component a browser talks to directly. `node_modelapi` (SQL API, the repository-root `app.py`) is the same model service documented throughout this file, deployed separately as `aml-model-backend`. `node_modelclient` (`model_client.py`) calls it exactly like any other HTTP client would — over `model_url`, never in-process — so the two can run as separate Render services (the deployed split) or as sibling processes on one machine (`analytics_service.local`, loopback only) without any code change. `node_ollama` is the local Ollama instance reached through the Cloudflare tunnel described in [Current Deployment](#current-deployment) above, not a cloud-hosted model endpoint.
+
+`node_knowledge` ("FalkorDB graph database") is the actual knowledge base behind schema retrieval: a hosted
+FalkorDB instance (Redis-protocol, Cypher queries) holding `Table`/`Field`/`Dataset`/`MetadataMetric` nodes
+and `HAS_FIELD`/`HAS_TABLE`/`HAS_SUBFIELD`/`REFERENCES`/`LINKS_TO`/`CATALOGUES` edges, built from
+`schema/aml_data_model_schema.json` by `graph/build_falkordb_graph.py`. It is a graph database, not a
+relational schema dump — `pipeline/text2sql_falkordb.py`'s retrieval step queries it directly via Cypher
+(hybrid lexical + semantic scoring over its nodes) rather than reading a static schema string. Screenshot
+of the live graph (FalkorDB's own browser UI, `MATCH (n) OPTIONAL MATCH (n)-[e]-(m) RETURN * LIMIT 100`):
+
+![FalkorDB knowledge graph: Table, Field, Dataset and MetadataMetric nodes connected by HAS_FIELD, HAS_TABLE, HAS_SUBFIELD, REFERENCES, LINKS_TO and CATALOGUES edges](images/falkordb-knowledge-graph.png)
 
 ### `analytics_service` in Detail
 
@@ -188,15 +234,14 @@ flowchart TD
     RESP --> UI
 ```
 
-The API key authenticates the backend's model call only. BigQuery uses a separate IAM identity. No API key, service-account credential or raw model prompt is exposed to the browser. Results do not return to Gemini by default.
+The API key authenticates the backend's model call only. BigQuery uses a separate IAM identity. No API key, service-account credential or raw model prompt is exposed to the browser.
 
-### Model Access Choices
-
-**Synthetic demo:** server-side Gemini Developer API key, stored outside Git, preferably Secret Manager for a deployed service. Send only sanitized questions, approved schema metadata, permissible enum definitions and business rules. Disable unnecessary external grounding and tools. Do not send the full enriched dataset JSON: its examples and observed values can contain row-level information.
-
-**Real banking data:** select an enterprise Google Cloud Gemini deployment with IAM-based workload authentication, approved endpoint/model/location and verified organization controls. Prefer an attached service account with Application Default Credentials over downloadable key files. Verify model-specific VPC Service Controls and residency support before drawing an enforced perimeter. A paid API key alone is not a data-residency guarantee. Google documents supported controls by model in its [security controls matrix](https://docs.cloud.google.com/vertex-ai/generative-ai/docs/security-controls).
-
-Google's Gemini Developer API terms distinguish unpaid and paid processing. Unpaid service terms generally permit product improvement and human review and prohibit submitting sensitive information; there are EEA/UK/Switzerland exceptions. Paid processing has different protections but still describes limited abuse-monitoring retention and possible processing locations. Review the applicable terms before introducing confidential data. [Gemini API terms](https://ai.google.dev/gemini-api/terms)
+> This target diagram's `ADAPTER`/`LLM` nodes are drawn as a generic server-side model adapter behind an
+> API key, following the original governed-access proposal. The model actually in use in this repository
+> is `mannix/defog-llama3-sqlcoder-8b` run locally via Ollama (see [Current Deployment](#current-deployment)
+> and [`analytics_service` in Detail](#analytics_service-in-detail) above) rather than a hosted Gemini
+> endpoint, so the Gemini-specific access-choices/terms guidance that previously lived here has been
+> removed as inapplicable; the adapter-behind-a-validator shape still applies to whatever model sits there.
 
 ## Request Processing Contract
 

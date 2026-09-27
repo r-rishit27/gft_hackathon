@@ -1,1 +1,1 @@
-https://buyers-issued-detection-settlement.trycloudflare.com
+https://pdas-edge-losing-indices.trycloudflare.com

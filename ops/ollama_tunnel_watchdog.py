@@ -84,8 +84,11 @@ def push_tracked_host_file(new_url):
     TRACKED_HOST_FILE.write_text(new_url + "\n", encoding="utf-8")
     try:
         subprocess.run(["git", "add", "ops/current_ollama_host.txt"], check=True, cwd=REPO_ROOT)
+        # Path-limited commit: a bare `git commit` would also sweep in anything
+        # else a person happens to have staged in this working tree.
         subprocess.run(
-            ["git", "commit", "-m", f"Automated: update current Ollama tunnel URL to {new_url}"],
+            ["git", "commit", "-m", f"Automated: update current Ollama tunnel URL to {new_url}",
+             "--", "ops/current_ollama_host.txt"],
             check=True, cwd=REPO_ROOT,
         )
         subprocess.run(["git", "push", "origin", "main"], check=True, cwd=REPO_ROOT)

@@ -7,7 +7,7 @@ dataset through a separate read-only analytics service. The original SQL-only en
 **Live application:** [aml-analytics-service.onrender.com/login](https://aml-analytics-service.onrender.com/login)
 — see [Deployment](#deployment) below for what's actually running there and its caveats before relying on it.
 
-**Demo video:** [Watch on Google Drive](https://drive.google.com/file/d/1T-SbKs8z6kyc2xeww4LJT9KSzyI8p_M1/view?usp=sharing)
+**Demo video:** [Watch Demo](https://github.com/r-rishit27/gft_hackathon/blob/main/Demo_Video.mp4)
 
 ### Walkthrough
 

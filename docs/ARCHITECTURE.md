@@ -12,11 +12,23 @@ Deployment update (2026-09-25): a PoC instance of `analytics_service` and the mo
 | --- | --- | --- |
 | `analytics_service` (product UI, auth, BigQuery execution) | Render, `aml-analytics-service`, free tier | Public HTTPS; role-based login as designed in [`analytics_service` in Detail](#analytics_service-in-detail) below |
 | `app.py` (model service, `/generate-sql` only) | Render, `aml-model-backend`, free tier | Public HTTPS but intended as an internal dependency only; called by `aml-analytics-service` over HTTPS, not loopback (the two run as separate Render services, each with its own memory, not one process pair sharing a container) |
-| SQLCoder (`mannix/defog-llama3-sqlcoder-8b`) | Local machine, via Ollama, exposed through a Cloudflare quick tunnel | Not a cloud-hosted model endpoint; the tunnel is ephemeral and has no uptime guarantee. If the local machine or tunnel goes down, both Render services stay reachable but SQL generation stops working. |
+| SQLCoder (`mannix/defog-llama3-sqlcoder-8b`) | Local machine, via Ollama, exposed through a Cloudflare quick tunnel | Not a cloud-hosted model endpoint; the tunnel is ephemeral and has no uptime guarantee. If the local machine or tunnel goes down, generation falls back automatically to a hosted fallback model (slower, about a minute per answer) — see [Reliability and Scaling](#reliability-and-scaling). |
+| Schema knowledge graph | FalkorDB Cloud, free tier | Free instances are stopped after 1 day unused and deleted after 7, with no persistence or backups; kept in use by a 10-minute keep-alive. If the graph ever comes back empty, rebuild it with `graph/build_falkordb_graph.py`. |
+| Uptime jobs | cron-job.org, 3 jobs | Keep both Render services warm and FalkorDB in use; email on repeated failure. See [Reliability and Scaling](#reliability-and-scaling). |
 | BigQuery access | Application Default Credentials from a personal `gcloud auth application-default login`, impersonating the three scoped service accounts (`aml-monitoring-poc`, `aml-investigation-poc`, `aml-admin-poc`) | Not a dedicated service-account key issued for this deployment; uploaded to Render as a secret file. Revocation requires redoing the login and re-uploading. |
-| Role/session secrets (`config.roles.local.json`) | Uploaded to Render as a secret file, not committed to git | `profile-logins.local.json` (plaintext reference passwords) is never uploaded or read by the running server -- it exists only for a human operator to read the three demo logins from. |
+| Role/session secrets (`config.roles.local.json`) | Uploaded to Render as a secret file, not committed to git | Holds only salted scrypt hashes. The three demo passwords are deliberately public (README and the login page's Demo logins panel) so reviewers can sign in; all three roles are read-only over synthetic data. |
 
 This deployment does not implement §"Country and Row-Level Isolation"'s per-request entitlement architecture beyond what `analytics_service` already does locally (see below), has no Secret Manager, no VPC Service Controls perimeter, no Cloud Run isolation, and no structured/retained audit log beyond Render's own request logs. Treat it as a working demo of the six-KPI prototype, not a governed deployment satisfying the request-processing contract below.
+
+### System Overview
+
+![System architecture: users and roles, identity and policy, SQL generation, graph and LLM, and query execution columns, with the deploy and provision strip below](images/system-architecture.png)
+
+Left to right: the analyst signs in by role; the analytics API resolves identity, access intent and scope
+on the server; the model service generates SQL in five steps (verified exemplars, hybrid schema retrieval
+from FalkorDB, SQLCoder generation on Ollama, schema repair, model validation); the approved SQL then passes
+the catalog and validator before the BigQuery executor dry-runs and runs it against that role's authorized
+views. The strip below shows where each piece is deployed.
 
 ### Component Diagram
 
@@ -118,6 +130,42 @@ static schema string. Screenshot of the live graph (FalkorDB's own browser UI, `
 (n)-[e]-(m) RETURN * LIMIT 100`):
 
 ![FalkorDB knowledge graph: Table, Field, Dataset and MetadataMetric nodes connected by HAS_FIELD, HAS_TABLE, HAS_SUBFIELD, REFERENCES, LINKS_TO and CATALOGUES edges](images/falkordb-knowledge-graph.png)
+
+### Reliability and Scaling
+
+Every dependency in this deployment is on a free tier or a laptop, so each has a known way of going away.
+This is what keeps each one up, and what happens when it doesn't:
+
+| Failure mode | What handles it |
+| --- | --- |
+| Render free tier spins a service down after ~15 minutes idle, costing the next request a cold start | cron-job.org pings both services every 10 minutes |
+| FalkorDB free tier stops an instance after 1 day unused and deletes it after 7, with no persistence | cron-job.org calls the model service's `/keepalive` every 10 minutes; it runs a real graph query (count of `Table` nodes) and returns 503 if FalkorDB is unreachable or the graph is empty |
+| The Cloudflare quick tunnel drops or rotates to a new hostname | `ops/ollama_tunnel_watchdog.py` health-checks it every 30 s, restarts it after 3 consecutive failures, and commits the new URL to `ops/current_ollama_host.txt`; the model service polls that file every ~20 s (`OLLAMA_HOST_REFRESH_URL`) and switches in place, with no redeploy |
+| The laptop idles or its lid is closed on charger | `ops/keep_awake.py` blocks idle sleep, lid-close is set to do nothing on AC power, and the ops scripts start automatically at login |
+| The laptop is off, or Ollama is otherwise unreachable | `generate_sql_ollama` falls back automatically to a hosted fallback model (about a minute per answer, 150 s timeout, inside the analytics service's 240 s model timeout) |
+| A failure nobody notices | Each cron job emails after 3 consecutive failures or if the job is auto-disabled; the model service logs the traceback behind any 503 |
+
+Cron schedule (all UTC, offset so the three never fire together):
+
+| Job | Target | Minutes past the hour |
+| --- | --- | --- |
+| Analytics keep-warm | `aml-analytics-service` `/login` | :00, :10, :20, :30, :40, :50 |
+| Model keep-warm | `aml-model-backend` `/health` | :05, :15, :25, :35, :45, :55 |
+| FalkorDB keep-alive | `aml-model-backend` `/keepalive` | :02, :12, :22, :32, :42, :52 |
+
+These run on cron-job.org rather than GitHub Actions: a scheduled Actions workflow for the same job never
+fired for this repository across many ticks, although manual runs worked.
+
+`/health` on the model service reports two readiness flags: `ollama_ready` (the primary path) and
+`generation_ready` (true if Ollama *or* the fallback can answer). The dashboard's connection dot follows
+`generation_ready`, so it stays green while the fallback is serving.
+
+**Scaling.** Concurrency is bounded at each layer rather than serialized: the analytics service admits up to
+6 in-flight queries (`max_concurrent_queries`, configurable to 20), Ollama runs 2 generations in parallel
+(`OLLAMA_NUM_PARALLEL=2`), and the model service reuses one pooled HTTP session and one FalkorDB connection
+across requests — see [Concurrency and latency](#analytics_service-in-detail) below. The hard ceiling is the
+single laptop GPU/CPU running Ollama and Render's 512 MB free instances; moving Ollama to hosted infrastructure
+is the next step for both uptime and throughput.
 
 ### `analytics_service` in Detail
 

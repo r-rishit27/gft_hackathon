@@ -148,6 +148,8 @@ real product surface — see git history if you need that code back).
 | [`aml-analytics-service`](https://aml-analytics-service.onrender.com) | Render (free tier) | The deployed product: `analytics_service`'s role-based login, BigQuery-backed dashboard, and query history. Sign in at `/login`. |
 | `aml-model-backend` | Render (free tier) | `app.py` alone — an internal-only `POST /generate-sql` API with no UI. `aml-analytics-service` calls it over HTTPS; nothing else should depend on it directly. |
 | Ollama / SQLCoder | This laptop, via a self-healing Cloudflare quick tunnel | Both Render services reach `mannix/defog-llama3-sqlcoder-8b` through a `cloudflared` tunnel to Ollama running locally, not a cloud-hosted model. `ops/ollama_tunnel_watchdog.py` keeps it alive — see below. |
+| FalkorDB schema graph | FalkorDB Cloud (free tier) | The knowledge graph schema retrieval queries. Free instances stop after 1 day unused and are deleted after 7 (no persistence), so a keep-alive job keeps it in use. |
+| Uptime jobs | cron-job.org | Three jobs keep both Render services warm and FalkorDB in use, and email on repeated failure — see [Reliability and scaling](#reliability-and-scaling). |
 
 **This is deliberately not the governed architecture `docs/ARCHITECTURE.md` describes** (no Cloud Run, no
 Secret Manager, no VPC-SC perimeter, no structured audit log) — it's the fastest path to a working public
@@ -170,7 +172,7 @@ demo, and it inherits every limitation that implies:
   push access to this repo, and a Render API key — either `RENDER_API_KEY` in the environment, or the one
   `render login` already stored in `~/.render/cli.yaml`). What this *doesn't* fix: if the laptop itself
   sleeps, loses network entirely, or Ollama stops running, there's no tunnel to heal — the fallback model
-  covers that case instead (see below) — and see "Move Ollama off this laptop entirely" as the only
+  covers that case instead (see [Reliability and scaling](#reliability-and-scaling)) — and see "Move Ollama off this laptop entirely" as the only
   way to remove that dependency completely.
 - **`analytics_service` no longer serializes almost all traffic behind one query at a time.** Its `/query`
   endpoint is gated by a `BoundedSemaphore` (`max_concurrent_queries`), which used to default to 1 locally
@@ -210,7 +212,35 @@ Blueprint flow only launches services from the dashboard, not headlessly. `rende
 documents `aml-model-backend`'s configuration for reference/reproducibility; it isn't wired to auto-deploy
 either service end-to-end.
 
+## Reliability and scaling
+
+Every dependency here is on a free tier or a laptop, so each has a known way of going down. What covers each:
+
+| Failure | What handles it |
+| --- | --- |
+| Render spins a service down after ~15 min idle | cron-job.org pings both services every 10 min |
+| FalkorDB free tier stops after 1 day unused, deletes after 7 | cron-job.org calls `/keepalive` every 10 min; it runs a real graph query and fails if the graph is unreachable or empty |
+| Cloudflare tunnel drops or changes URL | the watchdog restarts it and pushes the new URL to `ops/current_ollama_host.txt`; the model service picks it up within ~20 s, with no redeploy |
+| Laptop idle or lid closed on charger | `ops/keep_awake.py`, lid-close set to do nothing on AC, ops scripts auto-start at login |
+| Laptop off / Ollama unreachable | generation falls back automatically to a hosted fallback model (about a minute per answer) |
+| Silent failures | each cron job emails after 3 consecutive failures or if disabled; 503s log their traceback |
+
+| Cron job (cron-job.org, UTC) | Target | Runs at |
+| --- | --- | --- |
+| Analytics keep-warm | `aml-analytics-service` `/login` | :00, :10, :20 … |
+| Model keep-warm | `aml-model-backend` `/health` | :05, :15, :25 … |
+| FalkorDB keep-alive | `aml-model-backend` `/keepalive` | :02, :12, :22 … |
+
+**Scaling:** up to 6 concurrent queries in the analytics service (configurable to 20), 2 parallel generations
+in Ollama (`OLLAMA_NUM_PARALLEL=2`), and pooled connections to Ollama and FalkorDB. The ceiling is the single
+laptop running Ollama plus Render's 512 MB free instances. Full detail:
+[`docs/ARCHITECTURE.md` → Reliability and Scaling](docs/ARCHITECTURE.md#reliability-and-scaling).
+
 ## Architecture
+
+![System architecture: users and roles, identity and policy, SQL generation, graph and LLM, and query execution, with the deploy and provision strip below](docs/images/system-architecture.png)
+
+The text-to-SQL pipeline inside the model service, step by step:
 
 ```
 question

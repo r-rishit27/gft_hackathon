@@ -9,6 +9,37 @@ dataset through a separate read-only analytics service. The original SQL-only en
 
 **Demo video:** [Watch Demo](https://github.com/r-rishit27/gft_hackathon/blob/main/Demo_Video.mp4)
 
+### Demo logins
+
+Sign in at [/login](https://aml-analytics-service.onrender.com/login). All three roles are read-only and
+query synthetic data only.
+
+| Role | Username | Password |
+| --- | --- | --- |
+| Monitoring | `monitoring` | `************************` |
+| Investigation | `investigation` | `************************` |
+| Admin | `admin` | `************************` |
+
+<details>
+<summary><b>Show passwords</b> (each has a copy button)</summary>
+
+**monitoring**
+```
+c7MjHxLKHeDxA3UCeIaPP0XA
+```
+
+**investigation**
+```
+PeSg4lVR9Ga4zkrEo2ku_XmP
+```
+
+**admin**
+```
+wiAwcn62tsc8dtExhZmtih9v
+```
+
+</details>
+
 ### Walkthrough
 
 Sign in with one of the three demo roles (`monitoring`, `investigation` or `admin`):
@@ -167,10 +198,10 @@ demo, and it inherits every limitation that implies:
 - **BigQuery auth reuses a personal Google login's Application Default Credentials**, uploaded to Render
   as a secret file, rather than a dedicated service-account key scoped to just this deployment. Revoking
   it later means redoing that `gcloud auth application-default login` and re-uploading the credential.
-- **Two local-only secret files never leave this laptop by design:** `analytics_service/config.roles.local.json`
-  (uploaded to Render as a secret file, not committed) and `profile-logins.local.json` (plaintext
-  reference passwords for the three demo logins — read by *you*, never by the running server; see
-  [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#analytics_service-in-detail)).
+- **Login secrets:** `analytics_service/config.roles.local.json` holds only salted scrypt hashes (uploaded
+  to Render as a secret file, not committed). The three demo passwords are published in
+  [Demo logins](#demo-logins) above so reviewers can sign in, so treat them as public: anyone can use the
+  demo, bounded by the per-identity rate limit (`requests_per_minute`) and the concurrency cap.
 
 Redeploying either Render service (after a code change, a new Cloudflare tunnel URL, etc.) is done via the
 [Render CLI](https://render.com/docs/cli) rather than a `render.yaml` Blueprint import, since Render's

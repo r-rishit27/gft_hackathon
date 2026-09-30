@@ -16,6 +16,7 @@ Then:
     POST /generate-sql   {"question": "..."}
 """
 
+import time
 import traceback
 from contextlib import asynccontextmanager
 
@@ -170,3 +171,23 @@ def health():
             "generation_ready": ready or bool(pipeline.OPENAI_API_KEY),
             "model": pipeline.OLLAMA_MODEL, "backend": pipeline.MODEL_BACKEND,
             "schema_backend": pipeline.SCHEMA_BACKEND}
+
+
+@app.get("/keepalive")
+def keepalive():
+    # FalkorDB's free tier stops an instance after 1 day unused and deletes it
+    # after 7, with no persistence -- so an external cron hits this to count as
+    # usage, and it fails (503, which alerts) if the graph is unreachable or
+    # has come back empty and needs rebuilding with graph/build_falkordb_graph.py.
+    started = time.monotonic()
+    try:
+        graph = pipeline.connect_graph()
+        if graph is None:
+            raise RuntimeError("SCHEMA_BACKEND is not falkordb")
+        tables = graph.query("MATCH (t:Table) RETURN count(t)").result_set[0][0]
+    except Exception as exc:  # noqa: BLE001 - reported as a keepalive failure
+        traceback.print_exc()
+        raise HTTPException(status_code=503, detail="FalkorDB unreachable") from exc
+    if not tables:
+        raise HTTPException(status_code=503, detail="FalkorDB schema graph is empty; rebuild it")
+    return {"falkordb": "ok", "tables": tables, "latency_ms": round((time.monotonic() - started) * 1000)}

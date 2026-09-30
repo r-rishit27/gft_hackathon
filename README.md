@@ -12,7 +12,8 @@ dataset through a separate read-only analytics service. The original SQL-only en
 ### Demo logins
 
 Sign in at [/login](https://aml-analytics-service.onrender.com/login). All three roles are read-only and
-query synthetic data only.
+query synthetic data only. The login page itself lists these with the password masked: its **Copy**
+button (or selecting and copying the `****`) copies the exact password, and **Fill** fills the form.
 
 | Role | Username | Password |
 | --- | --- | --- |

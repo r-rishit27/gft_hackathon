@@ -16,6 +16,7 @@ Then:
     POST /generate-sql   {"question": "..."}
 """
 
+import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -135,6 +136,7 @@ def generate_sql(request: QuestionRequest):
             allowed_columns=request.allowed_columns,
         )
     except Exception as exc:  # noqa: BLE001 - surface pipeline errors to the caller
+        traceback.print_exc()  # the 503 detail is deliberately generic, so the cause must go to the logs
         raise HTTPException(status_code=503, detail="Model generation unavailable; check local service logs.") from exc
 
     return QuestionResponse(

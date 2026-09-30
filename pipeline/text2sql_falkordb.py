@@ -662,7 +662,10 @@ def _generate_sql_openai(prompt, system=None):
         "https://api.openai.com/v1/chat/completions",
         headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
         json={"model": OPENAI_FALLBACK_MODEL, "messages": messages},
-        timeout=int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "60")),
+        # Measured ~55s for a real schema-sized prompt, so 60s was cutting
+        # off valid answers; 150s still fits inside analytics_service's
+        # 240s model timeout.
+        timeout=int(os.environ.get("OPENAI_TIMEOUT_SECONDS", "150")),
     )
     resp.raise_for_status()
     return _extract_sql(resp.json()["choices"][0]["message"]["content"])

@@ -1,1 +1,1 @@
-https://korea-extract-exotic-asked.trycloudflare.com
+https://api.trycloudflare.com

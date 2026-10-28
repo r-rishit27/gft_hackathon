@@ -1,1 +1,1 @@
-https://protein-supervisor-resorts-falling.trycloudflare.com
+https://api.trycloudflare.com

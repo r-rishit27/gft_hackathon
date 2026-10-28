@@ -1,1 +1,1 @@
-https://api.trycloudflare.com
+https://paths-mostly-european-optimum.trycloudflare.com

@@ -1,1 +1,1 @@
-https://contamination-cached-meant-highland.trycloudflare.com
+https://api.trycloudflare.com

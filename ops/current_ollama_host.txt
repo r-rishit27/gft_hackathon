@@ -1,1 +1,1 @@
-https://api.trycloudflare.com
+https://should-toll-utilization-alerts.trycloudflare.com

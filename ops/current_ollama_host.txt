@@ -1,1 +1,1 @@
-https://que-subscriber-starting-swim.trycloudflare.com
+https://api.trycloudflare.com

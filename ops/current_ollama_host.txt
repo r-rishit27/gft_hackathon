@@ -1,1 +1,1 @@
-https://therapist-curves-screening-share.trycloudflare.com
+https://api.trycloudflare.com

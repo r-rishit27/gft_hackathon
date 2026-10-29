@@ -1,1 +1,1 @@
-https://some-barrel-smoking-consisting.trycloudflare.com
+https://api.trycloudflare.com

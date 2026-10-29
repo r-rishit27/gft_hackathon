@@ -1,1 +1,1 @@
-https://your-fcc-bishop-chan.trycloudflare.com
+https://api.trycloudflare.com

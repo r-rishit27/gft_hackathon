@@ -1,1 +1,1 @@
-https://treo-electric-pathology-messaging.trycloudflare.com
+https://api.trycloudflare.com

@@ -1,1 +1,1 @@
-https://compression-products-across-utah.trycloudflare.com
+https://api.trycloudflare.com

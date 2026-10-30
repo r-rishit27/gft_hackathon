@@ -1,1 +1,1 @@
-https://protocols-durham-exist-legends.trycloudflare.com
+https://api.trycloudflare.com

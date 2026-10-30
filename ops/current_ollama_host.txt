@@ -1,1 +1,1 @@
-https://ment-montgomery-airports-installations.trycloudflare.com
+https://api.trycloudflare.com

@@ -1,1 +1,1 @@
-https://api.trycloudflare.com
+https://look-daily-bracelet-printer.trycloudflare.com

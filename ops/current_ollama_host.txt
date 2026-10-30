@@ -1,1 +1,1 @@
-https://korean-observe-fonts-alerts.trycloudflare.com
+https://api.trycloudflare.com

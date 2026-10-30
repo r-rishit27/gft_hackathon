@@ -1,1 +1,1 @@
-https://completion-kansas-standing-enrolled.trycloudflare.com
+https://api.trycloudflare.com

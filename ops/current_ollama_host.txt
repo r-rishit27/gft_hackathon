@@ -1,1 +1,1 @@
-https://tracks-none-asia-toolbox.trycloudflare.com
+https://api.trycloudflare.com

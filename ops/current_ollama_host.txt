@@ -1,1 +1,1 @@
-https://barnes-costs-lamps-res.trycloudflare.com
+https://api.trycloudflare.com

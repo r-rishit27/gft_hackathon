@@ -1,1 +1,1 @@
-https://cached-techno-breakfast-ruled.trycloudflare.com
+https://api.trycloudflare.com

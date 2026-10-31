@@ -1,1 +1,1 @@
-https://closely-moving-defensive-dropped.trycloudflare.com
+https://api.trycloudflare.com

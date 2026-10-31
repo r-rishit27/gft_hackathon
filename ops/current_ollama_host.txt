@@ -1,1 +1,1 @@
-https://johnston-precise-compensation-appreciate.trycloudflare.com
+https://api.trycloudflare.com

@@ -1,1 +1,1 @@
-https://far-billion-descending-olive.trycloudflare.com
+https://api.trycloudflare.com

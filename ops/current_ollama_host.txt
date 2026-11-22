@@ -1,1 +1,1 @@
-https://groove-breath-shuttle-blake.trycloudflare.com
+https://api.trycloudflare.com

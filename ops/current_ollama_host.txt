@@ -1,1 +1,1 @@
-https://route-travelers-thumbzilla-protein.trycloudflare.com
+https://api.trycloudflare.com

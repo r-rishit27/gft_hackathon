@@ -1,1 +1,1 @@
-https://duke-establishment-during-employees.trycloudflare.com
+https://api.trycloudflare.com

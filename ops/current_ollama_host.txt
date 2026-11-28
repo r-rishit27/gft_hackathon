@@ -1,1 +1,1 @@
-https://pictures-initially-vacancies-cats.trycloudflare.com
+https://api.trycloudflare.com

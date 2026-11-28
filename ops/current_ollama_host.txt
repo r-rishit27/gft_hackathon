@@ -1,1 +1,1 @@
-https://attacked-parties-meeting-reactions.trycloudflare.com
+https://api.trycloudflare.com

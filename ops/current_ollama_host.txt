@@ -1,1 +1,1 @@
-https://lease-argue-hamilton-pilot.trycloudflare.com
+https://api.trycloudflare.com

@@ -1,1 +1,1 @@
-https://api.trycloudflare.com
+https://converted-chronicles-warning-mas.trycloudflare.com
